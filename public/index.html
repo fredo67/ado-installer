@@ -154,6 +154,10 @@
   .zone-hint{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.55;margin:0 0 18px;padding:10px 12px;background:#FF5A1F0a;border-left:2px solid var(--accent);border-radius:4px}
   .zone-hint b{color:var(--text);font-weight:600}
   .token-valid{border-color:var(--green) !important;box-shadow:0 0 0 4px #16A34A1a !important}
+  .token-warn{border-color:var(--accent) !important;box-shadow:0 0 0 4px #FF5A1F14 !important}
+  .token-hint{font-family:var(--mono);font-size:11px;line-height:1.4;margin:6px 4px 14px;min-height:14px;color:var(--muted)}
+  .token-hint-ok{color:var(--green)}
+  .token-hint-warn{color:var(--accent)}
   .waiting-actions{text-align:center;margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
   .waiting-actions a{color:var(--muted);border-bottom:1px dotted var(--muted);cursor:pointer}
   .waiting-actions a:hover{color:var(--accent);border-color:var(--accent)}
@@ -504,7 +508,48 @@ function cfTokenCreateUrl(domain) {
 }
 
 function looksLikeCloudflareToken(s) {
-  return /^[A-Za-z0-9_-]{40}$/.test((s || '').trim());
+  const v = (s || '').trim();
+  // Modern scannable formats (2024+): prefix + 40 chars + checksum. The checksum
+  // length isn't pinned by the docs, so we accept 40–60 after the prefix.
+  //   cfut_… User API Token · cfat_… Account API Token · cfk_… Global API Key
+  if (/^cf(ut|at|k)_[A-Za-z0-9]{40,60}$/.test(v)) return true;
+  // Legacy User/Account API Token: flat 40-char alphanumeric.
+  if (/^[A-Za-z0-9]{40}$/.test(v)) return true;
+  // Legacy Global API Key: 37–45 lowercase hex.
+  if (/^[a-f0-9]{37,45}$/.test(v)) return true;
+  return false;
+}
+
+// Soften the gate: button enabled as soon as the field is non-empty; shape is a
+// hint (green ✓ / orange ⚠), never a block. Cloudflare's API decides validity.
+function bindTokenInput(inputId, btnId, hintId, errId) {
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  const hint = document.getElementById(hintId);
+  if (!input || !btn) return;
+  function refresh() {
+    const v = input.value.trim();
+    btn.disabled = v.length === 0;
+    if (!hint) return;
+    if (v.length === 0) {
+      hint.textContent = ''; hint.className = 'token-hint';
+      input.classList.remove('token-valid', 'token-warn');
+    } else if (looksLikeCloudflareToken(v)) {
+      hint.textContent = '✓ Looks like a valid Cloudflare token';
+      hint.className = 'token-hint token-hint-ok';
+      input.classList.add('token-valid'); input.classList.remove('token-warn');
+    } else {
+      hint.textContent = "Doesn't match Cloudflare's expected format — Authorize anyway to let Cloudflare decide.";
+      hint.className = 'token-hint token-hint-warn';
+      input.classList.add('token-warn'); input.classList.remove('token-valid');
+    }
+  }
+  const submit = () => installViaCloudflare(input.value.trim(), errId ? document.getElementById(errId) : null, btn);
+  input.addEventListener('input', refresh);
+  input.addEventListener('paste', () => setTimeout(refresh, 0));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btn.disabled) { e.preventDefault(); submit(); } });
+  btn.addEventListener('click', submit);
+  refresh();
 }
 
 // Session-scoped token reuse (30-min TTL; dies with the tab).
@@ -545,33 +590,19 @@ function bindCloudflareAuthorize() {
   $('#cfForget')?.addEventListener('click', () => { forgetSessionToken(); activate.authErr = null; renderActivate(); });
   $('#cfSavedAuthorize')?.addEventListener('click', () => installViaCloudflare(getSessionToken(), $('#cfErr'), $('#cfSavedAuthorize'), { savedToken: true }));
   $('#cfBackPopup')?.addEventListener('click', () => { activate.pasteInstead = false; activate.authErr = null; renderActivate(); });
-  const inline = $('#cfInlineToken');
-  if (inline) {
-    const btn = $('#cfInlineAuthorize');
-    btn.addEventListener('click', () => installViaCloudflare(inline.value.trim(), $('#cfErr'), btn));
-    inline.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); installViaCloudflare(inline.value.trim(), $('#cfErr'), btn); } });
-    setTimeout(() => inline.focus(), 50);
+  if ($('#cfInlineToken')) {
+    bindTokenInput('cfInlineToken', 'cfInlineAuthorize', 'cfTokenHint', 'cfErr');
+    setTimeout(() => $('#cfInlineToken').focus(), 50);
   }
 }
 
 // Shared by the waiting state and the popup-blocked fallback (#popupToken).
 function bindWaitingStateEvents() {
-  const input = $('#popupToken');
-  const btn = $('#popupAuthorize');
-  const err = $('#popupErr');
-  if (!input) return;
-  const refresh = () => { btn.disabled = !looksLikeCloudflareToken(input.value); };
-  input.addEventListener('input', refresh);
-  input.addEventListener('paste', () => setTimeout(() => {
-    if (looksLikeCloudflareToken(input.value)) { input.classList.add('token-valid'); btn.disabled = false; btn.focus(); }
-  }, 0));
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && looksLikeCloudflareToken(input.value)) { e.preventDefault(); installViaCloudflare(input.value.trim(), err, btn); }
-  });
-  btn.addEventListener('click', () => installViaCloudflare(input.value.trim(), err, btn));
+  if (!$('#popupToken')) return;
+  bindTokenInput('popupToken', 'popupAuthorize', 'tokenHint', 'popupErr');
   $('#cancelWait')?.addEventListener('click', () => { activate.step = 'authorize'; activate.pasteInstead = false; renderActivate(); });
   $('#reopenPopup')?.addEventListener('click', openCloudflarePopup);
-  setTimeout(() => input.focus(), 50);
+  setTimeout(() => $('#popupToken').focus(), 50);
 }
 
 // Writes the records via the token, advances to Activating. On failure the
@@ -726,7 +757,8 @@ function bodyAuthorizeCloudflare() {
   if (activate.pasteInstead) {
     return cfHead('Sign in to') + `
       <p class="msub">Paste a Cloudflare API token scoped to <code>Zone:DNS:Edit</code> for <b>${esc(state.domain)}</b>.</p>
-      <input class="modal-field" id="cfInlineToken" type="password" placeholder="Cloudflare API token" spellcheck="false" />
+      <input class="modal-field" id="cfInlineToken" type="password" placeholder="cfut_… or 40-char token" spellcheck="false" />
+      <div id="cfTokenHint" class="token-hint"></div>
       <a class="tokenlink" href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">Create a token ↗</a>
       ${scopesBlock()}
       ${activate.authErr ? errLine : '<p class="modal-status" id="cfErr"></p>'}
@@ -763,7 +795,8 @@ function bodyAuthorizeWaiting() {
     <p class="msub">A new window opened with Cloudflare's token creator. We pre-selected <code>Zone:DNS:Edit</code> for you.</p>
     ${popupSteps()}
     <p class="zone-hint">Tip: choose <b>Include All zones from an account</b> if you plan to add more domains this session — we'll remember the token for 30 minutes.</p>
-    <input id="popupToken" type="password" placeholder="Paste your token here" spellcheck="false" />
+    <input id="popupToken" type="password" placeholder="cfut_… or 40-char token" spellcheck="false" />
+    <div id="tokenHint" class="token-hint"></div>
     <button class="pill lg" id="popupAuthorize" type="button" style="width:100%" disabled>Authorize →</button>
     <p class="modal-status" id="popupErr"></p>
     <div class="waiting-actions">
@@ -776,7 +809,8 @@ function bodyPopupBlocked() {
     <p class="msub"><b>Popup blocked.</b> Your browser blocked the new window. Open Cloudflare in a new tab — same flow, one extra click.</p>
     <a class="pill lg" href="${cfTokenCreateUrl(state.domain)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none">Open Cloudflare in a new tab →</a>
     <p class="msub" style="margin-top:18px">Then paste the token here:</p>
-    <input id="popupToken" type="password" placeholder="Cloudflare API token" spellcheck="false" />
+    <input id="popupToken" type="password" placeholder="cfut_… or 40-char token" spellcheck="false" />
+    <div id="tokenHint" class="token-hint"></div>
     <button class="pill lg" id="popupAuthorize" type="button" style="width:100%" disabled>Authorize →</button>
     <p class="modal-status" id="popupErr"></p>
     <div class="waiting-actions"><a id="cancelWait">Cancel</a></div>`;
