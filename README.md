@@ -181,7 +181,8 @@ conventions, how to add a registrar, and how the headless‑Chrome screenshot ch
 ### Contributing to AgentRoot
 
 This project is MIT‑licensed (see [`LICENSE`](LICENSE)) specifically so it can be folded into
-the AgentRoot ecosystem. To adopt it:
+the AgentRoot ecosystem. A paste‑ready proposal/cover note lives in
+[`docs/CONTRIBUTION-PROPOSAL.md`](docs/CONTRIBUTION-PROPOSAL.md). To adopt it:
 
 - The record/manifest format in [`docs/AGENTROOT-RECORDS.md`](docs/AGENTROOT-RECORDS.md) should
   be reconciled with AgentRoot's canonical spec; the implementation reads `v=agentroot1` and a
