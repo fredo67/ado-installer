@@ -1,0 +1,17 @@
+[Unit]
+Description=ADO Installer (AgentRoot domain onboarding)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ado-installer
+ExecStart=/usr/bin/node /opt/ado-installer/server.js
+EnvironmentFile=-/opt/ado-installer/.env
+Environment=NODE_ENV=production
+Environment=PORT=4180
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target

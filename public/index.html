@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ADO Installer — Turn any domain into an agent</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13' fill='%23FF5A1F' font-family='monospace'>&gt;_</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#FAF8F3; --text:#1A1A1A; --muted:#6B6B6B; --accent:#FF5A1F; --green:#16A34A;
+    --termbg:#0F1014; --termtext:#E5E5E5; --line:#E7E2D8;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    display:flex;flex-direction:column;min-height:100vh;-webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  code{font-family:var(--mono);background:#00000008;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:.82em}
+
+  /* ---- nav ---- */
+  .nav{display:flex;align-items:center;gap:24px;padding:20px 40px;flex:0 0 auto}
+  .brand{font-family:var(--mono);font-weight:700;font-size:17px;letter-spacing:-.3px;display:flex;align-items:center;gap:9px}
+  .brand .prompt{color:var(--accent);font-weight:800}
+  .nav-links{display:flex;gap:22px;margin:0 auto;font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .nav-links a{cursor:default;opacity:.7;transition:opacity .15s}
+  .nav-links a:hover{opacity:1}
+  .pill{
+    font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;border:none;
+    background:var(--accent);color:#fff;padding:9px 18px;border-radius:999px;transition:transform .1s,filter .15s;
+  }
+  .pill:hover{filter:brightness(1.06)}
+  .pill:active{transform:translateY(1px)}
+  .pill:disabled,.pill[disabled]{opacity:.45;cursor:not-allowed}
+  .pill:disabled:hover{filter:none}
+
+  /* ---- hero ---- */
+  .hero{
+    flex:1 1 auto;display:grid;grid-template-columns:1.05fr 1fr;gap:56px;
+    align-items:center;max-width:1180px;width:100%;margin:0 auto;padding:8px 40px 32px;
+  }
+  .tagline{font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;gap:9px;margin-bottom:22px}
+  .tagline .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;flex:0 0 auto}
+  .headline{font-family:var(--mono);font-weight:800;font-size:clamp(34px,4.6vw,58px);line-height:1.04;letter-spacing:-1.5px;margin:0 0 22px}
+  #panel{min-height:230px}
+  .subhead{color:var(--muted);font-size:16px;line-height:1.55;max-width:430px;margin:0 0 22px}
+
+  .field-row{margin:0 0 18px}
+  input[type=text],input[type=password],input{
+    width:100%;max-width:430px;font-family:var(--mono);font-size:16px;color:var(--text);
+    background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:15px 18px;outline:none;transition:border-color .15s,box-shadow .15s;
+  }
+  input::placeholder{color:#b6b1a6}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 4px #FF5A1F1a}
+
+  .cta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px}
+  .ghost-pill{
+    font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;
+    background:transparent;color:var(--text);padding:9px 18px;border-radius:999px;border:1.5px solid var(--line);transition:border-color .15s,color .15s;
+  }
+  .ghost-pill:hover{border-color:var(--accent);color:var(--accent)}
+  .pill.lg,.ghost-pill.lg{font-size:14px;padding:13px 24px}
+
+  .err{color:var(--accent);font-family:var(--mono);font-size:13px;min-height:18px;margin:14px 0 0}
+  .status{color:var(--muted);font-family:var(--mono);font-size:13px;margin:16px 0 0}
+
+  /* ---- registrar card ---- */
+  .reg-card{display:flex;align-items:center;gap:16px;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:16px 18px;max-width:430px;margin:0 0 20px}
+  .reg-logo{width:46px;height:46px;border-radius:11px;background:var(--termbg);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .reg-logo img{width:24px;height:24px}
+  .reg-logo .fallback{color:#fff;font-family:var(--mono);font-weight:700}
+  .reg-label{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+  .reg-name{font-family:var(--mono);font-weight:700;font-size:19px;margin-top:2px}
+
+  /* ---- manual records ---- */
+  .rec{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;max-width:430px;margin:0 0 10px}
+  .rec-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+  .rec-name{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent)}
+  .rec-val{font-family:var(--mono);font-size:11.5px;color:var(--muted);word-break:break-all;line-height:1.4}
+  .copy{font-family:var(--mono);font-size:11px;cursor:pointer;background:#00000008;border:1px solid var(--line);border-radius:6px;padding:3px 9px;color:var(--text);flex:0 0 auto}
+  .copy:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ---- advanced disclosure ---- */
+  .adv-toggle{font-family:var(--mono);font-size:12px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:7px;margin-top:18px;border:none;background:none;padding:0}
+  .adv-toggle:hover{color:var(--accent)}
+  .adv-toggle .chev{display:inline-block;transition:transform .15s}
+  .adv-toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
+  .adv{display:none;margin-top:14px;padding-top:16px;border-top:1px dashed var(--line);max-width:430px}
+  .adv.open{display:block}
+  .adv-h{font-family:var(--mono);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin:18px 0 8px}
+  .adv-h:first-child{margin-top:0}
+  .note{font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.55;margin:0 0 8px}
+
+  /* ---- connect modal (login & set) ---- */
+  .modal-overlay{position:fixed;inset:0;background:#0f1014cc;backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:18px;max-width:540px;width:100%;padding:36px 40px;box-shadow:0 30px 90px -20px #0f1014aa;position:relative;animation:pop .16s ease-out}
+  @keyframes pop{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  .modal .x{position:absolute;top:16px;right:18px;border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1}
+  .modal .x:hover{color:var(--text)}
+  .modal-logo{width:54px;height:54px;border-radius:14px;background:var(--termbg);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+  .modal-logo img{width:28px;height:28px}
+  .modal-logo .fallback{color:#fff;font-family:var(--mono);font-weight:700;font-size:20px}
+  .modal h3{font-family:var(--mono);font-weight:700;font-size:22px;margin:0 0 14px}
+  .modal .msub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 20px}
+  .modal .msub b{color:var(--text)}
+  .modal .msub.center,.modal-status.center{text-align:center}
+  .modal .pill.lg{width:100%;padding:16px 24px;font-size:15px}
+  .modal .reg-card{max-width:none}
+
+  /* modal stepper */
+  .modal-stepper{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:0 0 20px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .ms-step.ms-done{color:var(--green)}
+  .ms-step.ms-active{color:var(--accent);font-weight:700;display:inline-flex;align-items:center;gap:6px}
+  .ms-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .ms-sep{opacity:.4}
+
+  /* detect-result host override */
+  .diffhost{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12.5px;color:var(--muted);cursor:pointer;margin:0 0 12px}
+  .diffhost input{margin:0;width:auto}
+  .hostpick{display:none;margin:0 0 16px}
+  .hostpick.open{display:block}
+  .hostsel{width:100%;font-family:var(--mono);font-size:14px;color:var(--text);background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:11px 14px;outline:none}
+  .hostsel:focus{border-color:var(--accent)}
+
+  /* activating / activated centered states */
+  .astate-center{display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 0 4px}
+  .act-glyph{font-size:38px;margin:6px 0 14px;animation:pulse 1.6s ease-in-out infinite}
+  .act-check{width:64px;height:64px;border-radius:50%;background:#16A34A1a;color:var(--green);font-size:34px;display:flex;align-items:center;justify-content:center;margin:6px 0 16px}
+  .act-h{font-family:var(--mono);font-weight:700;font-size:18px;margin:0 0 8px}
+  .prog{width:100%;height:6px;background:var(--bg);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:20px 0 6px}
+  .prog-bar{height:100%;background:var(--accent);transition:width .3s linear}
+  .prog-meta{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center}
+
+  /* hero success banner */
+  .livebanner{font-family:var(--mono);font-size:13px;color:var(--green);background:#16A34A12;border:1px solid #16A34A33;border-radius:10px;padding:10px 14px;margin:0 0 18px;max-width:430px}
+  .regwhois{font-family:var(--mono);font-size:12px;color:var(--muted);margin:-8px 0 16px}
+  .regwhois b{color:var(--text)} .regwhois .src{opacity:.6;text-transform:uppercase;letter-spacing:.5px}
+
+  /* cloudflare popup authorize flow */
+  .trust-copy{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.55;margin:12px 0 18px;text-align:center}
+  .savedtok{color:var(--green);display:flex;align-items:center;justify-content:center}
+  .popup-steps{list-style:none;counter-reset:pstep;padding:0;margin:0 0 20px}
+  .popup-steps li{counter-increment:pstep;font-family:var(--mono);font-size:13px;line-height:1.7;color:var(--muted);padding:3px 0 3px 30px;position:relative}
+  .popup-steps li::before{content:counter(pstep);position:absolute;left:0;top:3px;width:20px;height:20px;border:1.5px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent);background:#fff}
+  .popup-steps li b{color:var(--text);font-weight:600}
+  .zone-hint{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.55;margin:0 0 18px;padding:10px 12px;background:#FF5A1F0a;border-left:2px solid var(--accent);border-radius:4px}
+  .zone-hint b{color:var(--text);font-weight:600}
+  .token-valid{border-color:var(--green) !important;box-shadow:0 0 0 4px #16A34A1a !important}
+  .waiting-actions{text-align:center;margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .waiting-actions a{color:var(--muted);border-bottom:1px dotted var(--muted);cursor:pointer}
+  .waiting-actions a:hover{color:var(--accent);border-color:var(--accent)}
+  .waiting-actions .dot-sep{margin:0 10px;opacity:.4}
+  .modal .scopes-label{font-family:var(--mono);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+  .modal .scopes{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin:0 0 16px;opacity:.85}
+  .modal .scope{font-family:var(--mono);font-size:12px;display:flex;gap:9px;align-items:center;line-height:1.9}
+  .modal .scope b{color:var(--green);font-weight:700;opacity:.55}
+  .modal .scope span{color:var(--text);font-weight:500}
+  .modal input{margin-bottom:12px}
+  .modal-status{font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.5;margin:12px 0 0;min-height:16px}
+
+  /* ---- bulk ---- */
+  .bulk-ta{width:100%;max-width:430px;min-height:118px;resize:vertical;font-family:var(--mono);font-size:14px;color:var(--text);background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;outline:none;line-height:1.7;margin-bottom:16px}
+  .bulk-ta:focus{border-color:var(--accent);box-shadow:0 0 0 4px #FF5A1F1a}
+  .btable{max-width:430px;margin:16px 0 4px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;max-height:228px;overflow-y:auto}
+  .brow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px}
+  .brow:last-child{border-bottom:none}
+  .bdom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .breg{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px}
+  .breg .reg-logo{width:22px;height:22px;border-radius:6px}
+  .breg .reg-logo img{width:13px;height:13px}
+  .breg .reg-logo .fallback{font-size:11px}
+  .bmut{color:#b6b1a6}
+  .bstat{font-size:11px;white-space:nowrap;color:var(--muted)}
+  .bstat.s-installing,.bstat.s-verifying,.bstat.s-waiting{color:var(--accent)}
+  .bstat.s-installed,.bstat.s-live{color:var(--green)}
+  .bstat.s-error{color:#d33}
+  .bact{font-family:var(--mono);font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;white-space:nowrap;border-bottom:1px dotted var(--accent)}
+  .bact:hover{filter:brightness(1.1)}
+
+  .success-badge{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:700;font-size:20px;color:var(--green);margin:0 0 16px}
+  .tokenlink{font-family:var(--mono);font-size:12px;color:var(--muted);display:inline-block;margin-top:14px;border-bottom:1px dotted var(--muted)}
+  .tokenlink:hover{color:var(--accent);border-color:var(--accent)}
+
+  /* ---- terminal card ---- */
+  .right{display:flex;justify-content:center}
+  .terminal{width:100%;max-width:480px;background:var(--termbg);border-radius:14px;box-shadow:0 24px 60px -24px #0f101466,0 2px 8px #0f10141a;overflow:hidden;border:1px solid #ffffff12}
+  .term-bar{display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid #ffffff10;position:relative}
+  .term-bar .d{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .term-bar .r{background:#ff5f56}.term-bar .y{background:#ffbd2e}.term-bar .g{background:#27c93f}
+  .term-title{position:absolute;left:0;right:0;text-align:center;font-family:var(--mono);font-size:12px;color:#8b8d93;letter-spacing:.5px;pointer-events:none}
+  .term-body{font-family:var(--mono);font-size:13px;line-height:1.7;color:var(--termtext);padding:18px 20px;margin:0;min-height:330px;white-space:pre-wrap;word-break:break-word}
+  .tl{min-height:1.7em}
+  .tl.cmd{color:var(--termtext)} .tl.cmd .p{color:var(--accent);font-weight:700}
+  .tl.ok{color:#5fd98a} .tl.arrow{color:#c7c9cf} .tl.wait{color:#7c7f87}
+  .tl.cursor{color:var(--accent)}
+  .blink{animation:blink 1.05s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  /* ---- wizard (steps 2-4) ---- */
+  .wizard{display:none;flex:1 1 auto;max-width:600px;width:100%;margin:44px auto;padding:0 24px}
+  body.step-2 .hero, body.step-3 .hero, body.step-4 .hero{display:none}
+  body.step-2 .wizard, body.step-3 .wizard, body.step-4 .wizard{display:block}
+  .stepind{font-family:var(--mono);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:22px}
+  .si{display:inline-flex;align-items:center;gap:6px}
+  .si.cur{color:var(--accent);font-weight:700}
+  .si.done{color:var(--muted)}
+  .si.up{color:#bcb6aa}
+  .sidot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
+  .sisep{color:#d2ccc0}
+  .wizard-card{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:32px;box-shadow:0 4px 20px -8px #0f10141a}
+  .wizard-card .subhead{max-width:none;margin:0 0 20px}
+  .wizard-card .reg-card{max-width:none}
+  .wback{font-family:var(--mono);font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0;margin-bottom:18px;display:inline-block}
+  .wback:hover{color:var(--accent)}
+  .pill.xl{font-size:16px;padding:18px 24px}
+  .wfull{width:100%}
+  .micro{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;margin:14px 0 0}
+  .linkbtn{font-family:var(--mono);font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;border-bottom:1px dotted var(--accent)}
+  .linkbtn:hover{filter:brightness(1.1)}
+  .terminal.embed{box-shadow:none;border:1px solid #00000014;margin:6px 0 18px}
+  .terminal.embed .term-body{min-height:196px}
+
+  /* ---- trust bar: full-width black band under the nav ---- */
+  .trustbar{flex:0 0 auto;width:100%;background:var(--termbg);color:#d7dade;font-family:var(--mono);font-size:12.5px;letter-spacing:.4px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;padding:13px 24px;border-top:1px solid #ffffff10;border-bottom:1px solid #ffffff10}
+  .trustbar b{color:var(--accent);font-weight:700;letter-spacing:2px;margin-right:16px}
+  .trustbar .reg{color:#eceef1}
+  .trustbar .sep{color:#4b4e57;margin:0 10px}
+  .trustbar .more{color:#8b8d93;margin-left:12px}
+
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr;gap:32px;padding-top:24px}
+    .nav-links{display:none}
+    .right{order:-1}
+    #panel{min-height:auto}
+  }
+  @media (max-width:640px){
+    .wizard{margin:24px auto;padding:0 16px}
+    .wizard-card{padding:20px}
+  }
+</style>
+</head>
+<body class="step-1">
+  <header class="nav">
+    <div class="brand"><span class="prompt">&gt;_</span> ADO Installer</div>
+    <nav class="nav-links">
+      <a id="lnkDocs">$ cat docs</a>
+      <a id="lnkReg">$ ls /registrars</a>
+    </nav>
+    <button class="pill" id="navInstall">$ install</button>
+  </header>
+
+  <div class="trustbar">
+    <b>WORKS WITH</b>
+    <span class="reg">Cloudflare</span><span class="sep">|</span><span class="reg">Namecheap</span><span class="sep">|</span><span class="reg">GoDaddy</span><span class="sep">|</span><span class="reg">Porkbun</span><span class="sep">|</span><span class="reg">Squarespace</span>
+    <span class="more">… and many more</span>
+  </div>
+
+  <main class="hero">
+    <section class="left">
+      <div class="tagline"><span class="dot"></span> OPEN · DNS-NATIVE · NO GATEKEEPERS</div>
+      <h1 class="headline">Turn any domain<br>into an agent.</h1>
+      <div id="panel"></div>
+    </section>
+
+    <section class="right">
+      <div class="terminal">
+        <div class="term-bar">
+          <span class="d r"></span><span class="d y"></span><span class="d g"></span>
+          <span class="term-title">agentroot</span>
+        </div>
+        <pre class="term-body" id="termBody"></pre>
+      </div>
+    </section>
+  </main>
+
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modalCard"></div>
+  </div>
+
+<script type="module">
+const $ = (s, r = document) => r.querySelector(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+const panel = $('#panel');
+// Terminal lives on the hero (#termBody) for Step 1, and embedded in the
+// wizard card (#termBody3) for Step 3. Pick whichever is currently present.
+function getTerm() { return document.getElementById('termBody3') || document.getElementById('termBody'); }
+
+// Step state is tracked via a body class (step-1..step-4) that swaps the layout.
+function setStep(n) {
+  document.body.className = document.body.className.replace(/\bstep-\d\b/g, '').trim();
+  document.body.classList.add(`step-${n}`);
+}
+function stepIndicator(active) {
+  return [[1, 'detect'], [2, 'connect'], [3, 'verify']].map(([n, label], i) => {
+    const num = String(n).padStart(2, '0');
+    const sep = i < 2 ? '<span class="sisep">▸</span>' : '';
+    let cls, inner;
+    if (n < active) { cls = 'done'; inner = `${num} ${label} ✓`; }
+    else if (n === active) { cls = 'cur'; inner = `<span class="sidot"></span>${num} ${label}`; }
+    else { cls = 'up'; inner = `${num} ${label}`; }
+    return `<span class="si ${cls}">${inner}</span>${sep}`;
+  }).join('');
+}
+
+const state = { domain: '', detect: null, batch: [], banner: null, manifestBase: null };
+
+function normalizeDomainClient(raw) {
+  const d = (raw || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(d) ? d : '';
+}
+async function mapLimit(items, limit, fn) {
+  const it = items[Symbol.iterator]();
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let n = it.next(); !n.done; n = it.next()) await fn(n.value);
+  }));
+}
+let typingToken = 0; // cancels in-flight terminal typing when the view changes
+
+// ---------------------------------------------------------------------------
+// Terminal rendering
+// ---------------------------------------------------------------------------
+function lineHTML(l) {
+  const cls = l.cls || '';
+  let text = esc(l.text ?? '');
+  if (cls.includes('cmd')) text = text.replace(/^(\$)(\s)/, '<span class="p">$1</span>$2');
+  return `<div class="tl ${cls}">${text}</div>`;
+}
+function renderTerm(lines) {
+  const t = getTerm();
+  if (!t) return;
+  typingToken++; // stop any typewriter
+  t.innerHTML = lines.map(lineHTML).join('');
+}
+async function typeScript(lines) {
+  const t = getTerm();
+  if (!t) return;
+  const token = ++typingToken;
+  t.innerHTML = '';
+  for (const l of lines) {
+    if (token !== typingToken) return;
+    const div = document.createElement('div');
+    div.className = 'tl ' + (l.cls || '');
+    t.appendChild(div);
+    const text = l.text ?? '';
+    for (let i = 0; i < text.length; i++) {
+      if (token !== typingToken) return;
+      const shown = esc(text.slice(0, i + 1));
+      div.innerHTML = (l.cls || '').includes('cmd')
+        ? shown.replace(/^(\$)(\s)/, '<span class="p">$1</span>$2')
+        : shown;
+      await sleep(l.fast ? 7 : 16);
+    }
+    await sleep(l.pause ?? 160);
+  }
+  if (token === typingToken) {
+    const cur = document.createElement('div');
+    cur.className = 'tl cursor';
+    cur.innerHTML = '<span class="p">$</span> <span class="blink">_</span>';
+    t.appendChild(cur);
+  }
+}
+
+const HERO_SCRIPT = [
+  { text: '$ ado-installer detect mycompany.com', cls: 'cmd', pause: 320 },
+  { text: '' },
+  { text: '✓ DNS managed by Cloudflare', cls: 'ok' },
+  { text: '✓ Token verified (Zone:DNS:Edit)', cls: 'ok', pause: 320 },
+  { text: '' },
+  { text: '$ ado-installer install mycompany.com', cls: 'cmd', pause: 320 },
+  { text: '' },
+  { text: '→ writing _agent.mycompany.com', cls: 'arrow', fast: true },
+  { text: '→ writing _skill.mycompany.com', cls: 'arrow', fast: true },
+  { text: '✓ records propagated', cls: 'ok' },
+  { text: '✓ mycompany.com live on AgentRoot', cls: 'ok', pause: 200 },
+  { text: '' },
+];
+
+// ---------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------
+function viewDetect() {
+  setStep(1);
+  panel.innerHTML = `
+    ${state.banner ? `<div class="livebanner">✓ ${esc(state.banner)} is live on AgentRoot · <button class="linkbtn" id="bannerAnother" type="button">install another →</button></div>` : ''}
+    <p class="subhead">Enter your domain. We'll handle the DNS. Live on AgentRoot in 60 seconds.</p>
+    <form id="detectForm" class="field-row" autocomplete="off">
+      <input id="domainInput" type="text" placeholder="mycompany.com" spellcheck="false" value="${esc(state.domain)}" />
+    </form>
+    <div class="cta-row">
+      <button class="pill lg" id="installBtn" type="button">$ install →</button>
+      <button class="ghost-pill lg" id="howBtn" type="button">$ how it works</button>
+    </div>
+    <button class="adv-toggle" id="bulkLink"><span class="chev">▸</span> bulk — install many domains at once</button>
+    <p class="err" id="err"></p>`;
+  typeScript(HERO_SCRIPT);
+  const input = $('#domainInput');
+  input.focus();
+  resetInstallButton(); // safety net if re-entered with stale '$ detecting…'
+  $('#bannerAnother')?.addEventListener('click', () => { state.banner = null; state.domain = ''; viewDetect(); });
+  $('#detectForm').addEventListener('submit', (e) => { e.preventDefault(); doDetect(); });
+  $('#installBtn').addEventListener('click', doDetect);
+  // Touching the input means "new attempt" — always restore a usable button.
+  input.addEventListener('input', resetInstallButton);
+  input.addEventListener('focus', resetInstallButton);
+  $('#bulkLink').addEventListener('click', viewBulk);
+  $('#howBtn').addEventListener('click', () => typeScript([
+    { text: '$ ado-installer --help', cls: 'cmd', pause: 260 }, { text: '' },
+    { text: '1. detect  — find who runs your DNS', cls: 'arrow', fast: true },
+    { text: '2. install — write _agent + _skill TXT', cls: 'arrow', fast: true },
+    { text: '3. verify  — confirm propagation', cls: 'arrow', fast: true }, { text: '' },
+    { text: '✓ no account, no gatekeepers', cls: 'ok' },
+  ]));
+}
+
+function resetInstallButton() {
+  const btn = document.getElementById('installBtn');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.textContent = '$ install →';
+  const err = document.getElementById('err');
+  if (err) err.textContent = '';
+}
+
+async function doDetect() {
+  const raw = $('#domainInput').value;
+  const err = $('#err');
+  const btn = $('#installBtn');
+  err.textContent = '';
+  btn.textContent = '$ detecting…'; btn.disabled = true;
+  try {
+    const r = await api('/api/detect', { domain: raw });
+    state.domain = normalizeDomainClient(raw);
+    state.detect = r;
+    if (r.manifest_base) state.manifestBase = r.manifest_base;
+    openActivateModal(r);
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    // Always reset — opening the modal or showing an error both leave the
+    // user with a usable button for their next attempt.
+    btn.disabled = false;
+    btn.textContent = '$ install →';
+  }
+}
+
+function regLogoInner(slug, name) {
+  if (!slug) return `<span class="fallback">?</span>`;
+  return `<img alt="${esc(name)}" src="https://cdn.simpleicons.org/${slug}/FFFFFF" onerror="this.style.display='none';this.parentNode.innerHTML='<span class=&quot;fallback&quot;>${esc(name[0])}</span>'" />`;
+}
+function regLogo(slug, name) {
+  return `<div class="reg-logo">${regLogoInner(slug, name)}</div>`;
+}
+
+// =========================================================================
+// Activate modal — one linear flow: detect-result → authorize → activating
+// → activated, with a manual branch (authorize-manual). Owns the whole
+// post-detect experience; the page underneath stays on the hero.
+// =========================================================================
+
+// Client-side registrar table for the "different host" dropdown.
+const REGISTRARS = [
+  { name: 'Cloudflare', slug: 'cloudflare', deep: 'https://dash.cloudflare.com/?to=/:account/{domain}/dns' },
+  { name: 'GoDaddy', slug: 'godaddy', deep: 'https://dcc.godaddy.com/control/portfolio/{domain}/settings?subtab=dns' },
+  { name: 'Namecheap', slug: 'namecheap', deep: 'https://ap.www.namecheap.com/domains/domaincontrolpanel/{domain}/advancedns' },
+  { name: 'Porkbun', slug: 'porkbun', deep: 'https://porkbun.com/account/domainsSpeedy?search={domain}' },
+  { name: 'Squarespace', slug: 'squarespace', deep: 'https://account.squarespace.com/domains/managed/{domain}/dns-settings' },
+  { name: 'AWS Route 53', slug: 'amazonaws', deep: 'https://console.aws.amazon.com/route53/v2/hostedzones' },
+];
+
+let activate = null;
+let cfPopup = null;       // the Cloudflare token-creator popup window
+let popupWatcher = null;  // interval polling whether the popup closed
+
+function openActivateModal(detect) {
+  const unknown = detect.registrar === 'Unknown';
+  activate = { detect, step: 'detect-result', manual: false, diffHost: unknown, chosen: unknown ? 'Other' : null, deadline: 0, pasteInstead: false, authErr: null };
+  renderActivate();
+  openModal();
+}
+
+// ---- Cloudflare popup token flow -----------------------------------------
+const CF_TOKEN_KEY = 'ado_cf_token';
+
+// Cloudflare's token creator accepts `name` and `permissionGroupKeys` as URL
+// params (observed, not documented). No `zone` param — that made the dash
+// router 404; the user picks zone scope on the next wizard step instead.
+function cfTokenCreateUrl(domain) {
+  const params = new URLSearchParams({
+    name: `ADO Installer · ${domain}`,
+    permissionGroupKeys: JSON.stringify([{ key: 'dns', type: 'edit' }]),
+  });
+  return `https://dash.cloudflare.com/profile/api-tokens?${params.toString()}`;
+}
+
+function looksLikeCloudflareToken(s) {
+  return /^[A-Za-z0-9_-]{40}$/.test((s || '').trim());
+}
+
+// Session-scoped token reuse (30-min TTL; dies with the tab).
+function saveSessionToken(token) {
+  try { sessionStorage.setItem(CF_TOKEN_KEY, JSON.stringify({ token, exp: Date.now() + 30 * 60 * 1000 })); } catch {}
+}
+function getSessionToken() {
+  try {
+    const raw = sessionStorage.getItem(CF_TOKEN_KEY);
+    if (!raw) return null;
+    const { token, exp } = JSON.parse(raw);
+    if (Date.now() > exp) { sessionStorage.removeItem(CF_TOKEN_KEY); return null; }
+    return token;
+  } catch { return null; }
+}
+function forgetSessionToken() { try { sessionStorage.removeItem(CF_TOKEN_KEY); } catch {} }
+
+function openCloudflarePopup() {
+  activate.authErr = null;
+  const features = 'width=900,height=720,menubar=no,toolbar=no,location=yes,status=no';
+  cfPopup = window.open(cfTokenCreateUrl(state.domain), 'ado_cf_popup', features);
+  if (!cfPopup) { activate.step = 'authorize-popup-blocked'; renderActivate(); return; }
+  activate.step = 'authorize-waiting';
+  renderActivate();
+  setTimeout(() => $('#popupToken')?.focus(), 100);
+  if (popupWatcher) clearInterval(popupWatcher);
+  popupWatcher = setInterval(() => {
+    if (cfPopup && cfPopup.closed) {
+      clearInterval(popupWatcher); popupWatcher = null;
+      if (activate?.step === 'authorize-waiting') $('#popupToken')?.focus(); // nudge, don't auto-advance
+    }
+  }, 500);
+}
+
+function bindCloudflareAuthorize() {
+  $('#openCfBtn')?.addEventListener('click', openCloudflarePopup);
+  $('#pasteInstead')?.addEventListener('click', () => { activate.pasteInstead = true; activate.authErr = null; renderActivate(); setTimeout(() => $('#cfInlineToken')?.focus(), 50); });
+  $('#cfForget')?.addEventListener('click', () => { forgetSessionToken(); activate.authErr = null; renderActivate(); });
+  $('#cfSavedAuthorize')?.addEventListener('click', () => installViaCloudflare(getSessionToken(), $('#cfErr'), $('#cfSavedAuthorize'), { savedToken: true }));
+  $('#cfBackPopup')?.addEventListener('click', () => { activate.pasteInstead = false; activate.authErr = null; renderActivate(); });
+  const inline = $('#cfInlineToken');
+  if (inline) {
+    const btn = $('#cfInlineAuthorize');
+    btn.addEventListener('click', () => installViaCloudflare(inline.value.trim(), $('#cfErr'), btn));
+    inline.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); installViaCloudflare(inline.value.trim(), $('#cfErr'), btn); } });
+    setTimeout(() => inline.focus(), 50);
+  }
+}
+
+// Shared by the waiting state and the popup-blocked fallback (#popupToken).
+function bindWaitingStateEvents() {
+  const input = $('#popupToken');
+  const btn = $('#popupAuthorize');
+  const err = $('#popupErr');
+  if (!input) return;
+  const refresh = () => { btn.disabled = !looksLikeCloudflareToken(input.value); };
+  input.addEventListener('input', refresh);
+  input.addEventListener('paste', () => setTimeout(() => {
+    if (looksLikeCloudflareToken(input.value)) { input.classList.add('token-valid'); btn.disabled = false; btn.focus(); }
+  }, 0));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && looksLikeCloudflareToken(input.value)) { e.preventDefault(); installViaCloudflare(input.value.trim(), err, btn); }
+  });
+  btn.addEventListener('click', () => installViaCloudflare(input.value.trim(), err, btn));
+  $('#cancelWait')?.addEventListener('click', () => { activate.step = 'authorize'; activate.pasteInstead = false; renderActivate(); });
+  $('#reopenPopup')?.addEventListener('click', openCloudflarePopup);
+  setTimeout(() => input.focus(), 50);
+}
+
+// Writes the records via the token, advances to Activating. On failure the
+// modal stays put (typed token preserved); a stale saved token is forgotten.
+// Rewrites Cloudflare's API errors into something a non-API user can act on.
+function humanizeCloudflareError(msg) {
+  const m = (msg || '').toLowerCase();
+  if (m.includes('insufficient permissions') || m.includes('no permission')) {
+    return "This token can't write to this zone. Re-create the token with 'Include All zones' or include this specific zone.";
+  }
+  if (m.includes('no cloudflare zone found') || m.includes('zone not found')) {
+    return `This domain isn't on Cloudflare under this token's account. Check that ${state.domain} is added to the Cloudflare account you signed in with.`;
+  }
+  if (m.includes('invalid api token') || m.includes('authentication error')) {
+    return 'Cloudflare rejected the token. Double-check you copied it completely — it should be 40 characters.';
+  }
+  return msg;
+}
+
+async function installViaCloudflare(token, errEl, btn, opts = {}) {
+  if (errEl) errEl.textContent = '';
+  if (!looksLikeCloudflareToken(token)) { if (errEl) errEl.textContent = 'That doesn\'t look like a Cloudflare token (40 characters).'; return; }
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Authorizing…'; }
+  try {
+    await api('/api/cloudflare/install', { domain: state.domain, token });
+    saveSessionToken(token);
+    activate.authErr = null;
+    activate.step = 'activating'; renderActivate(); startActivating();
+  } catch (e) {
+    const friendly = humanizeCloudflareError(e.message);
+    // Clear a bad cached token so the user isn't stuck reusing it next time.
+    if (/insufficient permissions|invalid api token|authentication error|no permission/i.test(e.message)) forgetSessionToken();
+    if (opts.savedToken) {
+      forgetSessionToken();
+      activate.authErr = `Saved token didn't work — ${friendly}`;
+      activate.pasteInstead = false; activate.step = 'authorize'; renderActivate();
+      return;
+    }
+    if (errEl) errEl.textContent = friendly;
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+}
+
+function closeActivate() {
+  if (!activate) return closeModal();
+  if (activate.progressRAF) cancelAnimationFrame(activate.progressRAF);
+  if (activate.pollTimer) clearTimeout(activate.pollTimer);
+  if (popupWatcher) { clearInterval(popupWatcher); popupWatcher = null; } // leave the popup itself open — it's the user's window
+  const wasActivated = activate.step === 'activated';
+  activate = null;
+  closeModal();
+  if (wasActivated) { state.banner = state.domain; viewDetect(); }
+}
+
+function activateSteps() {
+  return activate.manual ? ['Detect', 'Add manually', 'Verify'] : ['Detect', 'Authorize', 'Activate', 'Verify'];
+}
+function activeStepIndex() {
+  const s = activate.step;
+  if (activate.manual) return ({ 'detect-result': 0, 'authorize-manual': 1, activating: 2, activated: 3 })[s] ?? 0;
+  return ({ 'detect-result': 0, authorize: 1, 'authorize-waiting': 1, 'authorize-popup-blocked': 1, activating: 2, activated: 4 })[s] ?? 0;
+}
+function activateStepper() {
+  const steps = activateSteps();
+  const idx = activeStepIndex();
+  return `<div class="modal-stepper">` + steps.map((label, i) => {
+    const cls = i < idx ? 'ms-done' : i === idx ? 'ms-active' : '';
+    const inner = cls === 'ms-done' ? `✓ ${label}` : cls === 'ms-active' ? `<span class="ms-dot"></span>${label}` : label;
+    const sep = i < steps.length - 1 ? `<span class="ms-sep">→</span>` : '';
+    return `<span class="ms-step ${cls}">${inner}</span>${sep}`;
+  }).join('') + `</div>`;
+}
+
+function renderActivate() {
+  $('#modalCard').innerHTML = `
+    <button class="x" id="modalX" aria-label="Close">×</button>
+    <h3>Activate AgentRoot for ${esc(state.domain)}</h3>
+    ${activateStepper()}
+    ${activateBody()}`;
+  $('#modalX').addEventListener('click', closeActivate);
+  bindActivate();
+}
+
+function activateBody() {
+  switch (activate.step) {
+    case 'detect-result': return bodyDetectResult();
+    case 'authorize': return bodyAuthorize();
+    case 'authorize-waiting': return bodyAuthorizeWaiting();
+    case 'authorize-popup-blocked': return bodyPopupBlocked();
+    case 'authorize-manual': return bodyManual();
+    case 'activating': return bodyActivating();
+    case 'activated': return bodyActivated();
+    default: return '';
+  }
+}
+
+function bodyDetectResult() {
+  const d = activate.detect;
+  const opts = REGISTRARS.map((r) => `<option value="${esc(r.name)}"${activate.chosen === r.name ? ' selected' : ''}>${esc(r.name)}</option>`).join('')
+    + `<option value="Other"${activate.chosen === 'Other' ? ' selected' : ''}>Other / not listed</option>`;
+  return `
+    <div class="reg-card">${regLogo(d.registrar_slug, d.registrar)}<div><div class="reg-label">DNS host</div><div class="reg-name">${esc(d.registrar)}</div></div></div>
+    ${d.whois_registrar ? `<p class="regwhois">Registrar of record: <b>${esc(d.whois_registrar)}</b> <span class="src">· ${esc(d.registrar_source || '')}</span></p>` : ''}
+    <p class="msub">We detected your DNS host. Click Continue and we'll add the two AgentRoot records to <b>${esc(state.domain)}</b>.</p>
+    <label class="diffhost"><input type="checkbox" id="diffHostCk"${activate.diffHost ? ' checked' : ''}/> My domain uses a different host</label>
+    <div class="hostpick${activate.diffHost ? ' open' : ''}"><select id="hostSelect" class="hostsel">${opts}</select></div>
+    <button class="pill lg" id="actContinue" type="button">Continue →</button>`;
+}
+
+function scopesBlock() {
+  return `<div class="scopes-label" style="margin-top:18px">RECORDS WE'LL ADD</div>
+    <div class="scopes">
+      <div class="scope"><b>+</b><span>_agent.${esc(state.domain)}&nbsp;&nbsp;TXT</span></div>
+      <div class="scope"><b>+</b><span>_skill.${esc(state.domain)}&nbsp;&nbsp;TXT</span></div>
+    </div>`;
+}
+function cfHead(label) {
+  return `<div class="reg-card">${regLogo('cloudflare', 'Cloudflare')}<div><div class="reg-label">${label}</div><div class="reg-name">Cloudflare</div></div></div>`;
+}
+
+function bodyAuthorize() {
+  const d = activate.detect;
+  const cfg = AUTOMATED[d.registrar];
+  if (!cfg) {
+    return `
+      <div class="reg-card">${regLogo(d.registrar_slug, d.registrar)}<div><div class="reg-label">DNS host</div><div class="reg-name">${esc(d.registrar)}</div></div></div>
+      <p class="msub">Direct sign-in for ${esc(d.registrar)} isn't available yet. Add the two records manually — we'll handle the verify step.</p>
+      <button class="pill lg" id="actToManual" type="button">Continue manually →</button>`;
+  }
+  if (d.registrar === 'Cloudflare') return bodyAuthorizeCloudflare();
+
+  // Other automated registrars (Porkbun): inline credential fields.
+  const fields = cfg.fields.map((f) => `<input class="modal-field" data-key="${f.key}" type="password" placeholder="${esc(f.placeholder)}" spellcheck="false" />`).join('');
+  return `
+    <div class="reg-card">${regLogo(d.registrar_slug, d.registrar)}<div><div class="reg-label">Sign in to</div><div class="reg-name">${esc(d.registrar)}</div></div></div>
+    <p class="msub">To add records on your behalf, we need your ${esc(d.registrar)} API key + secret for <b>${esc(state.domain)}</b>.</p>
+    ${fields}
+    <a class="tokenlink" href="${cfg.help.url}" target="_blank" rel="noopener">${cfg.help.text}</a>
+    ${scopesBlock()}
+    <p class="modal-status" id="actErr"></p>
+    <button class="pill lg" id="actAuthorize" type="button">Authorize →</button>
+    <p class="micro"><button class="linkbtn" id="actManual" type="button">Use manual instead</button></p>`;
+}
+
+// Cloudflare authorize has three sub-views: popup launcher (default),
+// saved-token (from this session), and the inline paste-it-instead form.
+function bodyAuthorizeCloudflare() {
+  const errLine = activate.authErr ? `<p class="modal-status" id="cfErr">${esc(activate.authErr)}</p>` : '';
+  const saved = getSessionToken();
+
+  if (activate.pasteInstead) {
+    return cfHead('Sign in to') + `
+      <p class="msub">Paste a Cloudflare API token scoped to <code>Zone:DNS:Edit</code> for <b>${esc(state.domain)}</b>.</p>
+      <input class="modal-field" id="cfInlineToken" type="password" placeholder="Cloudflare API token" spellcheck="false" />
+      <a class="tokenlink" href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">Create a token ↗</a>
+      ${scopesBlock()}
+      ${activate.authErr ? errLine : '<p class="modal-status" id="cfErr"></p>'}
+      <button class="pill lg" id="cfInlineAuthorize" type="button" style="width:100%">Authorize →</button>
+      <p class="micro"><button class="linkbtn" id="cfBackPopup" type="button">← back to one-click</button></p>`;
+  }
+  if (saved) {
+    return cfHead('Sign in to') + `
+      <p class="msub savedtok">✓ Using saved token from this session &nbsp;<button class="linkbtn" id="cfForget" type="button">forget</button></p>
+      ${scopesBlock()}
+      ${activate.authErr ? errLine : '<p class="modal-status" id="cfErr"></p>'}
+      <button class="pill lg" id="cfSavedAuthorize" type="button" style="width:100%">Authorize →</button>`;
+  }
+  return cfHead('Sign in to') + `
+    <p class="msub">We'll open Cloudflare in a new window so you can sign in there directly. Your password and 2FA stay on cloudflare.com — we never see them.</p>
+    <button class="pill lg" id="openCfBtn" type="button" style="width:100%">Open Cloudflare →</button>
+    <p class="trust-copy">Cloudflare handles your password and 2FA. We only see the API token you paste back, used once and forgotten when you close this tab.</p>
+    ${activate.authErr ? errLine : ''}
+    ${scopesBlock()}
+    <a class="tokenlink" id="pasteInstead">Already have a token? paste it instead</a>`;
+}
+
+function popupSteps() {
+  return `<ol class="popup-steps">
+    <li>Sign in to Cloudflare</li>
+    <li>Pick which zones the token can access (or "Include All zones")</li>
+    <li>Click <b>Continue to summary</b> then <b>Create token</b></li>
+    <li>Copy the token and come back here</li>
+  </ol>`;
+}
+
+function bodyAuthorizeWaiting() {
+  return cfHead('Waiting for') + `
+    <p class="msub">A new window opened with Cloudflare's token creator. We pre-selected <code>Zone:DNS:Edit</code> for you.</p>
+    ${popupSteps()}
+    <p class="zone-hint">Tip: choose <b>Include All zones from an account</b> if you plan to add more domains this session — we'll remember the token for 30 minutes.</p>
+    <input id="popupToken" type="password" placeholder="Paste your token here" spellcheck="false" />
+    <button class="pill lg" id="popupAuthorize" type="button" style="width:100%" disabled>Authorize →</button>
+    <p class="modal-status" id="popupErr"></p>
+    <div class="waiting-actions">
+      <a id="cancelWait">Cancel</a><span class="dot-sep">·</span><a id="reopenPopup">Open a new window</a>
+    </div>`;
+}
+
+function bodyPopupBlocked() {
+  return cfHead('Sign in to') + `
+    <p class="msub"><b>Popup blocked.</b> Your browser blocked the new window. Open Cloudflare in a new tab — same flow, one extra click.</p>
+    <a class="pill lg" href="${cfTokenCreateUrl(state.domain)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none">Open Cloudflare in a new tab →</a>
+    <p class="msub" style="margin-top:18px">Then paste the token here:</p>
+    <input id="popupToken" type="password" placeholder="Cloudflare API token" spellcheck="false" />
+    <button class="pill lg" id="popupAuthorize" type="button" style="width:100%" disabled>Authorize →</button>
+    <p class="modal-status" id="popupErr"></p>
+    <div class="waiting-actions"><a id="cancelWait">Cancel</a></div>`;
+}
+
+function bodyManual() {
+  const d = activate.detect;
+  return `
+    <p class="msub">Add these two TXT records in your DNS panel. We'll watch for propagation and finish the rest.</p>
+    ${recordValues(state.domain).map(recCard).join('')}
+    <button class="pill lg" id="actManualDone" type="button">Done — start verify →</button>
+    <p class="micro">${d.deep_link ? `<a class="linkbtn" href="${esc(d.deep_link)}" target="_blank" rel="noopener">Open ${esc(d.registrar)} DNS ↗</a> &nbsp;·&nbsp; ` : ''}<button class="linkbtn" id="actBackHost" type="button">← back to host selection</button></p>`;
+}
+
+function bodyActivating() {
+  const where = activate.manual ? '' : ` at ${esc(activate.detect.registrar)}`;
+  return `
+    <div class="astate-center">
+      <div class="act-glyph">⏳</div>
+      <h4 class="act-h">We're activating AgentRoot</h4>
+      <p class="msub center">Adding records${where} and confirming propagation. About a minute.</p>
+      <div class="prog"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
+      <div class="prog-meta"><span id="progEta">~60s</span></div>
+      <p class="modal-status center" id="actTimeout"></p>
+    </div>`;
+}
+
+function bodyActivated() {
+  const url = `https://www.agentroot.io/registry?q=${encodeURIComponent(state.domain)}`;
+  return `
+    <div class="astate-center">
+      <div class="act-check">✓</div>
+      <h4 class="act-h">${esc(state.domain)} is live on AgentRoot</h4>
+      <p class="msub center">Your domain now publishes an agent card and skill index over DNS.</p>
+      <a class="pill lg" href="${esc(url)}" target="_blank" rel="noopener">View in registry →</a>
+      <button class="ghost-pill lg wfull" id="actAnother" type="button">Install another</button>
+    </div>`;
+}
+
+function bindActivate() {
+  const s = activate.step;
+  if (s === 'detect-result') {
+    $('#diffHostCk').addEventListener('change', (e) => {
+      activate.diffHost = e.target.checked;
+      if (!activate.diffHost) activate.chosen = null;
+      else if (!activate.chosen) activate.chosen = REGISTRARS[0].name;
+      renderActivate();
+    });
+    $('#hostSelect')?.addEventListener('change', (e) => { activate.chosen = e.target.value; });
+    $('#actContinue').addEventListener('click', () => {
+      if (activate.diffHost && activate.chosen) {
+        if (activate.chosen === 'Other') activate.detect = { registrar: 'Unknown', registrar_slug: null, deep_link: null, automated: false };
+        else { const r = REGISTRARS.find((x) => x.name === activate.chosen); activate.detect = { registrar: r.name, registrar_slug: r.slug, deep_link: r.deep.replaceAll('{domain}', state.domain), automated: !!AUTOMATED[r.name] }; }
+      }
+      if (activate.detect.registrar === 'Unknown') { activate.manual = true; activate.step = 'authorize-manual'; }
+      else { activate.step = 'authorize'; }
+      renderActivate();
+    });
+  } else if (s === 'authorize') {
+    const d = activate.detect;
+    const cfg = AUTOMATED[d.registrar];
+    if (!cfg) {
+      $('#actToManual').addEventListener('click', () => { activate.manual = true; activate.step = 'authorize-manual'; renderActivate(); });
+    } else if (d.registrar === 'Cloudflare') {
+      bindCloudflareAuthorize();
+    } else {
+      $('#actAuthorize').addEventListener('click', () => doAuthorize(cfg));
+      $('#actManual').addEventListener('click', () => { activate.manual = true; activate.step = 'authorize-manual'; renderActivate(); });
+      setTimeout(() => $('#modalCard').querySelector('.modal-field')?.focus(), 50);
+    }
+  } else if (s === 'authorize-waiting' || s === 'authorize-popup-blocked') {
+    bindWaitingStateEvents();
+  } else if (s === 'authorize-manual') {
+    bindCopies($('#modalCard'));
+    $('#actManualDone').addEventListener('click', () => { activate.step = 'activating'; renderActivate(); startActivating(); });
+    $('#actBackHost').addEventListener('click', () => { activate.manual = false; activate.step = 'detect-result'; renderActivate(); });
+  } else if (s === 'activated') {
+    $('#actAnother').addEventListener('click', () => {
+      if (activate.progressRAF) cancelAnimationFrame(activate.progressRAF);
+      if (activate.pollTimer) clearTimeout(activate.pollTimer);
+      activate = null; state.banner = null; state.domain = '';
+      closeModal(); viewDetect();
+    });
+  }
+}
+
+async function doAuthorize(cfg) {
+  const creds = {};
+  $('#modalCard').querySelectorAll('.modal-field').forEach((el) => { creds[el.dataset.key] = el.value.trim(); });
+  const btn = $('#actAuthorize');
+  const err = $('#actErr');
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Authorizing…';
+  try {
+    await api(cfg.endpoint, { domain: state.domain, ...creds });
+    activate.step = 'activating'; renderActivate(); startActivating();
+  } catch (e) {
+    err.textContent = e.message; btn.disabled = false; btn.textContent = 'Authorize →';
+  }
+}
+
+// State C: fake-honest progress bar (real elapsed time) + real verify poll.
+function startActivating() {
+  const start = Date.now();
+  activate.deadline = start + 5 * 60 * 1000;
+  const tick = () => {
+    if (!activate || activate.step !== 'activating') return;
+    const elapsed = (Date.now() - start) / 1000;
+    const bar = $('#progBar');
+    const eta = $('#progEta');
+    if (bar) bar.style.width = Math.min(90, elapsed * 1.5) + '%';
+    if (eta) { const left = Math.max(0, 60 - Math.round(elapsed)); eta.textContent = left > 0 ? `~${left}s` : 'nearly there…'; }
+    activate.progressRAF = requestAnimationFrame(tick);
+  };
+  activate.progressRAF = requestAnimationFrame(tick);
+  pollActivate();
+}
+
+async function pollActivate() {
+  if (!activate || activate.step !== 'activating') return;
+  let r = null;
+  try { r = await api('/api/verify', { domain: state.domain }); } catch {}
+  if (!activate || activate.step !== 'activating') return;
+  if (r && r.agent?.ok && r.skill?.ok) {
+    const bar = $('#progBar'); if (bar) bar.style.width = '100%';
+    setTimeout(() => { if (activate && activate.step === 'activating') { activate.step = 'activated'; renderActivate(); } }, 450);
+    return;
+  }
+  if (Date.now() > activate.deadline) return showActivateTimeout();
+  activate.pollTimer = setTimeout(pollActivate, 3000);
+}
+
+function showActivateTimeout() {
+  const el = $('#actTimeout');
+  if (!el) return;
+  el.innerHTML = `Taking longer than expected — DNS can be slow.
+    <div class="cta-row" style="justify-content:center;margin-top:12px">
+      <button class="pill" id="actKeep" type="button">Keep waiting</button>
+      <button class="ghost-pill" id="actGoManual" type="button">Add manually</button>
+    </div>`;
+  $('#actKeep').addEventListener('click', () => { el.innerHTML = ''; activate.deadline = Date.now() + 5 * 60 * 1000; pollActivate(); });
+  $('#actGoManual').addEventListener('click', () => {
+    if (activate.progressRAF) cancelAnimationFrame(activate.progressRAF);
+    if (activate.pollTimer) clearTimeout(activate.pollTimer);
+    activate.manual = true; activate.step = 'authorize-manual'; renderActivate();
+  });
+}
+
+// --- Login / "Connect" modal --------------------------------------------
+// Registrars we can write to programmatically, and the credentials each needs.
+const AUTOMATED = {
+  Cloudflare: {
+    endpoint: '/api/cloudflare/install',
+    note: 'Paste a token scoped to <code>Zone:DNS:Edit</code> — used once, then discarded. Never stored.',
+    help: { url: 'https://dash.cloudflare.com/profile/api-tokens', text: 'Create a token ↗' },
+    fields: [{ key: 'token', placeholder: 'Cloudflare API token' }],
+  },
+  Porkbun: {
+    endpoint: '/api/porkbun/install',
+    note: 'Enable “API Access” on the domain in Porkbun, then paste your account API key + secret. Used once, then discarded.',
+    help: { url: 'https://porkbun.com/account/api', text: 'Get API keys ↗' },
+    fields: [
+      { key: 'apikey', placeholder: 'Porkbun API key (pk1_…)' },
+      { key: 'secretapikey', placeholder: 'Porkbun secret key (sk1_…)' },
+    ],
+  },
+};
+
+function openModal() { $('#modalOverlay').classList.add('open'); }
+function closeModal() { $('#modalOverlay').classList.remove('open'); }
+
+// Which modal state a detected registrar opens in.
+//   auto-ready : we can write via API today (Cloudflare, Porkbun) -> Sign in & Set
+//   auto-soon  : known registrar, automation not built yet -> lead with manual
+//   manual     : explicitly chosen, or registrar unknown -> copy/paste records
+function modalStateFor(d) {
+  if (d.registrar === 'Unknown') return 'manual';
+  return AUTOMATED[d.registrar] ? 'auto-ready' : 'auto-soon';
+}
+
+// opts: { state, domains = [state.domain], onDone(results), onProgress, onManualDone, manual }
+function openLoginModal(d, opts = {}) {
+  const domains = (opts.domains && opts.domains.length) ? opts.domains : [state.domain];
+  const initial = opts.state || (opts.manual ? 'manual' : modalStateFor(d));
+  renderModalBody(d, initial, { domains, onDone: opts.onDone, onProgress: opts.onProgress, onManualDone: opts.onManualDone });
+  openModal();
+}
+
+// Renders the modal contents for a given state and binds its events. The
+// in-modal links call this again to swap state in place (no close/reopen).
+function renderModalBody(d, modalState, ctx) {
+  const domains = ctx.domains;
+  const many = domains.length > 1;
+  const dom = domains[0];
+  const cfg = AUTOMATED[d.registrar];
+  const targetTxt = many ? `${domains.length} domains` : esc(dom);
+
+  // Dimmed "fine print" record list, used on the two sign-in states.
+  const scopes = `
+    <div class="scopes-label">RECORDS THAT WILL BE ADDED</div>
+    ${many
+      ? `<div class="scopes"><div class="scope"><b>+</b><span>_agent &amp; _skill TXT — on each of ${domains.length} domains</span></div></div>`
+      : `<div class="scopes">
+           <div class="scope"><b>+</b><span>_agent.${esc(dom)}&nbsp;&nbsp;TXT</span></div>
+           <div class="scope"><b>+</b><span>_skill.${esc(dom)}&nbsp;&nbsp;TXT</span></div>
+         </div>`}`;
+
+  const heading = modalState === 'manual' ? 'Add records manually' : `Connect ${esc(d.registrar)}`;
+  let inner;
+
+  if (modalState === 'auto-ready') {
+    const fields = cfg.fields.map((f) =>
+      `<input class="modal-field" data-key="${f.key}" type="password" placeholder="${esc(f.placeholder)}" spellcheck="false" />`).join('');
+    inner = `
+      <p class="msub">We'll sign you in to ${esc(d.registrar)} and add these two TXT records to <b>${targetTxt}</b>. Nothing else changes.</p>
+      ${scopes}
+      ${fields}
+      <button class="pill lg" id="modalConnect" type="button" style="width:100%">Sign in &amp; Set →</button>
+      <a class="tokenlink" href="${cfg.help.url}" target="_blank" rel="noopener">${cfg.help.text}</a>
+      <p class="modal-status" id="modalStatus"></p>
+      <p class="micro"><button class="linkbtn" id="toManual" type="button">add records manually instead</button></p>`;
+  } else if (modalState === 'auto-soon') {
+    inner = `
+      <p class="msub">Sign in &amp; Set for ${esc(d.registrar)} is rolling out soon. For now, add the two records manually — takes about a minute.</p>
+      ${scopes}
+      <button class="pill lg" id="toManual" type="button" style="width:100%">Add manually →</button>
+      ${d.deep_link ? `<a class="tokenlink" href="${esc(d.deep_link)}" target="_blank" rel="noopener">open ${esc(d.registrar)} DNS ↗</a>` : ''}`;
+  } else { // manual
+    inner = `
+      <p class="msub">Add these two TXT records in your DNS panel. We'll check propagation once you're done.</p>
+      ${recordValues(dom).map(recCard).join('')}
+      <button class="pill lg" id="modalDone" type="button" style="width:100%">Done — verify now →</button>
+      ${d.deep_link ? `<a class="tokenlink" href="${esc(d.deep_link)}" target="_blank" rel="noopener">open ${esc(d.registrar)} DNS ↗</a>` : ''}
+      ${cfg ? `<p class="micro"><button class="linkbtn" id="toSignin" type="button">← back to sign-in</button></p>` : ''}`;
+  }
+
+  $('#modalCard').innerHTML = `
+    <button class="x" id="modalX" aria-label="Close">×</button>
+    <div class="modal-logo">${regLogoInner(d.registrar_slug, d.registrar)}</div>
+    <h3>${heading}</h3>
+    ${inner}`;
+
+  $('#modalX').addEventListener('click', closeModal);
+
+  if (modalState === 'auto-ready') {
+    $('#modalConnect').addEventListener('click', () => {
+      const creds = {};
+      $('#modalCard').querySelectorAll('.modal-field').forEach((el) => { creds[el.dataset.key] = el.value.trim(); });
+      const onDone = ctx.onDone || ((results) => { if (results.every((r) => r.ok)) closeModal(); });
+      installAutomated(d, creds, domains, { statusEl: $('#modalStatus'), btn: $('#modalConnect'), onDone, onProgress: ctx.onProgress });
+    });
+    $('#toManual').addEventListener('click', () => renderModalBody(d, 'manual', ctx));
+    setTimeout(() => $('#modalCard').querySelector('.modal-field')?.focus(), 50);
+  } else if (modalState === 'auto-soon') {
+    $('#toManual').addEventListener('click', () => renderModalBody(d, 'manual', ctx));
+  } else { // manual
+    bindCopies($('#modalCard'));
+    $('#modalDone').addEventListener('click', () => {
+      if (ctx.onManualDone) return ctx.onManualDone();
+      closeModal();
+    });
+    if (cfg) $('#toSignin')?.addEventListener('click', () => renderModalBody(d, 'auto-ready', ctx));
+  }
+}
+
+// Writes both records for one OR many domains via the registrar's API endpoint.
+async function installAutomated(d, creds, domains, { statusEl, btn, onDone, onProgress } = {}) {
+  const cfg = AUTOMATED[d.registrar];
+  if (!cfg) return [];
+  if (statusEl) statusEl.textContent = '';
+  const orig = btn ? btn.textContent : '';
+  if (btn) btn.disabled = true;
+  const results = [];
+  for (const domain of domains) {
+    if (btn) btn.textContent = domains.length > 1 ? `writing ${results.length + 1}/${domains.length}…` : 'connecting…';
+    if (onProgress) onProgress(domain, 'installing');
+    renderTerm([
+      { text: `$ ado-installer install ${domain}`, cls: 'cmd' }, { text: '' },
+      { text: '→ writing _agent.' + domain, cls: 'arrow' },
+      { text: '→ writing _skill.' + domain, cls: 'arrow' },
+    ]);
+    try {
+      const r = await api(cfg.endpoint, { domain, ...creds });
+      results.push({ domain, ok: true, record_ids: r.record_ids });
+      if (onProgress) onProgress(domain, 'installed');
+    } catch (e) {
+      results.push({ domain, ok: false, error: e.message });
+      if (onProgress) onProgress(domain, 'error', e.message);
+    }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = orig; }
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length && statusEl) statusEl.textContent = `${failed.length} of ${results.length} failed — ${failed[0].error}`;
+  if (failed.length) renderTerm([{ text: '$ ado-installer install', cls: 'cmd' }, { text: '' }, { text: '✗ ' + failed[0].error, cls: 'wait' }]);
+  if (onDone) onDone(results);
+  return results;
+}
+
+// The manifest host comes from the backend (/api/detect → manifest_base) so the
+// records shown here always match what the server actually writes.
+function manifestBase() { return state.manifestBase || 'https://manifests.example.com'; }
+function recordValues(domain) {
+  const b = manifestBase();
+  return [
+    { name: `_agent.${domain}`, value: `v=agentroot1; card=${b}/${domain}/agent-card.json` },
+    { name: `_skill.${domain}`, value: `v=agentroot1; index=${b}/${domain}/skills/index.json` },
+  ];
+}
+function recCard(r) {
+  return `<div class="rec">
+    <div class="rec-head"><span class="rec-name">${esc(r.name)}</span><button class="copy" data-copy="${esc(r.value)}">copy</button></div>
+    <div class="rec-val">${esc(r.value)}</div></div>`;
+}
+function bindCopies(root = panel) {
+  root.querySelectorAll('.copy').forEach((b) => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'copied ✓'; setTimeout(() => (b.textContent = 'copy'), 1400); } catch {}
+  }));
+}
+
+
+// --- Bulk: install many domains at once ---------------------------------
+function viewBulk() {
+  setStep(1);
+  panel.innerHTML = `
+    <p class="subhead">Paste your domains, one per line. We'll detect each registrar and write records across the whole list — one credential per registrar.</p>
+    <textarea id="bulkInput" class="bulk-ta" spellcheck="false" placeholder="acme.com&#10;example.io&#10;myproject.dev"></textarea>
+    <div class="cta-row">
+      <button class="pill lg" id="bulkDetectBtn" type="button">$ detect all →</button>
+      <button class="ghost-pill lg" id="bulkBackBtn" type="button">$ single domain</button>
+    </div>
+    <p class="err" id="bulkErr"></p>
+    <div id="bulkResults"></div>`;
+  $('#bulkInput').focus();
+  $('#bulkBackBtn').addEventListener('click', viewDetect);
+  $('#bulkDetectBtn').addEventListener('click', runBulkDetect);
+  if (state.batch.length) renderBatch();
+  renderTerm([
+    { text: '$ ado-installer install --bulk', cls: 'cmd' }, { text: '' },
+    { text: '→ paste your domains, one per line', cls: 'arrow' },
+    { text: '→ one API connect per registrar', cls: 'arrow' },
+  ]);
+}
+
+function parseDomains(text) {
+  const out = [], seen = new Set();
+  for (const tok of (text || '').split(/[\s,]+/)) {
+    const d = normalizeDomainClient(tok);
+    if (d && !seen.has(d)) { seen.add(d); out.push(d); }
+  }
+  return out;
+}
+
+async function runBulkDetect() {
+  const domains = parseDomains($('#bulkInput').value);
+  const err = $('#bulkErr');
+  if (!domains.length) { err.textContent = 'Enter at least one valid domain.'; return; }
+  err.textContent = '';
+  state.batch = domains.map((domain) => ({ domain, detect: null, status: 'detecting', error: null }));
+  renderBatch();
+  renderTerm([{ text: `$ ado-installer detect --bulk (${domains.length})`, cls: 'cmd' }, { text: '' }, { text: '→ resolving nameservers…', cls: 'arrow' }]);
+  await mapLimit(state.batch, 5, async (b) => {
+    try {
+      const r = await api('/api/detect', { domain: b.domain, whois: false });
+      if (r.manifest_base) state.manifestBase = r.manifest_base;
+      b.detect = r;
+      b.modalState = modalStateFor(r);
+      b.status = b.modalState === 'auto-ready' ? 'ready' : b.modalState === 'auto-soon' ? 'soon' : 'manual';
+    } catch (e) { b.status = 'error'; b.error = e.message; }
+    renderBatch();
+  });
+  const auto = state.batch.filter((b) => b.status === 'ready').length;
+  renderTerm([
+    { text: `$ ado-installer detect --bulk (${state.batch.length})`, cls: 'cmd' }, { text: '' },
+    { text: `✓ ${auto} automatable, ${state.batch.length - auto} manual`, cls: 'ok' },
+    { text: auto ? '→ connect each registrar to write records' : '→ no automatable registrars in this list', cls: 'arrow' },
+  ]);
+}
+
+const BSTATUS = { detecting: 'detecting…', installing: 'writing…', installed: 'installed', verifying: 'verifying…', waiting: 'propagating…', live: '✓ live', error: '✗ error' };
+// Idle, actionable statuses render as a clickable link that opens the modal.
+const BACTION = { ready: 'sign in', soon: 'sign in', manual: 'manual' };
+
+function renderBatch() {
+  const b = state.batch;
+  const rows = b.map((x) => {
+    const reg = x.detect ? `${regLogo(x.detect.registrar_slug, x.detect.registrar)}<span>${esc(x.detect.registrar)}</span>` : '<span class="bmut">…</span>';
+    const trailing = BACTION[x.status]
+      ? `<button class="bact" data-dom="${esc(x.domain)}" type="button">${BACTION[x.status]}</button>`
+      : `<span class="bstat s-${x.status}" title="${esc(x.error || '')}">${BSTATUS[x.status] || x.status}</span>`;
+    return `<div class="brow"><span class="bdom">${esc(x.domain)}</span><span class="breg">${reg}</span>${trailing}</div>`;
+  }).join('');
+
+  // Batch shortcut: one credential writes every automatable domain at that registrar.
+  const groups = {};
+  b.forEach((x) => { if (x.detect && AUTOMATED[x.detect.registrar] && x.status !== 'live') (groups[x.detect.registrar] ??= []).push(x); });
+  const connectBtns = Object.entries(groups).map(([reg, list]) =>
+    `<button class="pill" data-reg="${esc(reg)}" type="button">Connect ${esc(reg)} (${list.length}) →</button>`).join('');
+  const anyInstalled = b.some((x) => ['installed', 'waiting', 'verifying', 'live'].includes(x.status));
+
+  $('#bulkResults').innerHTML = `
+    <div class="btable">${rows}</div>
+    <div class="cta-row" id="bulkActions">
+      ${connectBtns}
+      ${anyInstalled ? `<button class="ghost-pill" id="bulkVerifyBtn" type="button">$ verify all →</button>` : ''}
+    </div>`;
+
+  $('#bulkResults').querySelectorAll('.bact').forEach((btn) => btn.addEventListener('click', () => {
+    const x = b.find((r) => r.domain === btn.dataset.dom);
+    if (x) openBulkRow(x);
+  }));
+  $('#bulkActions').querySelectorAll('[data-reg]').forEach((btn) => btn.addEventListener('click', () => {
+    const list = b.filter((x) => x.detect?.registrar === btn.dataset.reg && x.status !== 'live');
+    openLoginModal(list[0].detect, {
+      domains: list.map((x) => x.domain),
+      onProgress: setBatchStatus,
+      onDone: (results) => { if (results.some((r) => r.ok)) { closeModal(); runBulkVerify(); } },
+    });
+  }));
+  $('#bulkVerifyBtn')?.addEventListener('click', runBulkVerify);
+}
+
+// Per-row trigger: opens the modal for a single domain in its detected state.
+function openBulkRow(x) {
+  openLoginModal(x.detect, {
+    domains: [x.domain],
+    state: x.modalState,
+    onProgress: setBatchStatus,
+    onDone: (results) => { if (results.some((r) => r.ok)) { closeModal(); runBulkVerify(); } },
+    onManualDone: () => { setBatchStatus(x.domain, 'installed'); closeModal(); runBulkVerify(); },
+  });
+}
+
+function setBatchStatus(domain, status, error) {
+  const x = state.batch.find((b) => b.domain === domain);
+  if (!x) return;
+  x.status = status; if (error) x.error = error;
+  renderBatch();
+}
+
+async function runBulkVerify() {
+  const targets = state.batch.filter((x) => ['installed', 'waiting', 'verifying'].includes(x.status));
+  if (!targets.length) return;
+  targets.forEach((x) => { x.status = 'verifying'; });
+  renderBatch();
+  renderTerm([{ text: `$ ado-installer verify --bulk (${targets.length})`, cls: 'cmd' }, { text: '' }, { text: '→ checking propagation…', cls: 'arrow' }]);
+  await mapLimit(targets, 5, async (x) => {
+    try {
+      const r = await api('/api/verify', { domain: x.domain });
+      x.status = (r.agent.ok && r.skill.ok) ? 'live' : 'waiting';
+    } catch { x.status = 'waiting'; }
+    renderBatch();
+  });
+  const live = state.batch.filter((x) => x.status === 'live').length;
+  const waiting = state.batch.filter((x) => x.status === 'waiting').length;
+  renderTerm([
+    { text: '$ ado-installer verify --bulk', cls: 'cmd' }, { text: '' },
+    { text: `✓ ${live} live on AgentRoot`, cls: 'ok' },
+    ...(waiting ? [{ text: `  ${waiting} still propagating — verify again shortly`, cls: 'wait' }] : []),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+async function api(path, body) {
+  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+// nav (ghost links are visual-only in v3)
+$('#navInstall').addEventListener('click', () => { viewDetect(); $('#domainInput')?.focus(); });
+$('#lnkDocs').addEventListener('click', (e) => e.preventDefault());
+$('#lnkReg').addEventListener('click', (e) => e.preventDefault());
+
+// modal: close on backdrop click or Esc
+// Close routes through the activate modal's cleanup when it's the open one.
+function dismissModal() { if (activate) closeActivate(); else closeModal(); }
+$('#modalOverlay').addEventListener('click', (e) => { if (e.target === $('#modalOverlay')) dismissModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') dismissModal(); });
+
+// When the user returns from the Cloudflare popup, pre-focus the paste field.
+const focusPasteBack = () => { if (activate?.step === 'authorize-waiting' && !document.hidden) $('#popupToken')?.focus(); };
+window.addEventListener('focus', focusPasteBack);
+document.addEventListener('visibilitychange', focusPasteBack);
+
+viewDetect();
+</script>
+</body>
+</html>

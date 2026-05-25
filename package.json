@@ -1,0 +1,39 @@
+{
+  "name": "ado-installer",
+  "version": "3.6.0",
+  "description": "One-click AgentRoot domain onboarding — detect the DNS host, write the _agent/_skill TXT records (automated for Cloudflare & Porkbun, guided elsewhere), and verify propagation.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "DEMO=true node server.js"
+  },
+  "keywords": [
+    "agentroot",
+    "dns",
+    "txt-records",
+    "domain-onboarding",
+    "cloudflare",
+    "porkbun",
+    "agents"
+  ],
+  "author": "Fred Hsu",
+  "license": "MIT",
+  "homepage": "https://github.com/fredo67/ado-installer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredo67/ado-installer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fredo67/ado-installer/issues"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
