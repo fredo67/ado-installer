@@ -18,11 +18,11 @@ activation flow. Offered to AgentRoot under MIT as a reference implementation of
 domain onboarding; happy to re-home it under the org.
 
 ### What it does
-It publishes the two AgentRoot `TXT` records for a domain:
+It publishes one AgentRoot `TXT` record per domain (inline payload — AgentRoot
+indexes it directly; no JSON manifest is hosted):
 
 ```
-_agent.{domain}  TXT  "v=agentroot1; card=https://{manifest-host}/{domain}/agent-card.json"
-_skill.{domain}  TXT  "v=agentroot1; index=https://{manifest-host}/{domain}/skills/index.json"
+_agentroot.{domain}  TXT  "v=ar1 type=mcp name={label} transport=sse"
 ```
 
 - **Detect** the DNS host (live `dns.NS`) and registrar of record (system
@@ -55,15 +55,16 @@ Adding a registrar is a contained, declarative change (see `CONTRIBUTING.md`).
 - Repo is clean of secrets/PII (audited; single-commit history).
 
 ### Docs
-- `docs/AGENTROOT-RECORDS.md` — the TXT + manifest contract. **This is the file
-  to reconcile against AgentRoot's canonical spec** — the implementation keys on
-  `v=agentroot1` and a configurable `MANIFEST_BASE`, both trivial to align.
+- `docs/AGENTROOT-RECORDS.md` — the TXT record contract. **This is the file to
+  reconcile against AgentRoot's canonical spec** — the implementation writes the
+  four-field inline payload (`v=ar1 type=mcp name=… transport=sse`) the /publish
+  UI emits; open question is whether that's the canonical inline minimum.
 - `docs/ARCHITECTURE.md` — flow, detection, the activate-modal state machine.
 - `CONTRIBUTING.md` — setup, conventions, adding a registrar, testing.
 
 ### To adopt
-1. Confirm/align the record + manifest format in `docs/AGENTROOT-RECORDS.md`.
-2. Set `MANIFEST_BASE` and the deploy hostnames for AgentRoot's environment.
+1. Confirm/align the record format in `docs/AGENTROOT-RECORDS.md`.
+2. Set the deploy hostname for AgentRoot's environment.
 3. Re-home under the `agentroot/` org (a remote rename).
 
 ### Status

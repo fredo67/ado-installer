@@ -1,62 +1,60 @@
-# AgentRoot records & manifests
+# AgentRoot record format
 
 This is the data contract the installer writes. **It should be reconciled with AgentRoot's
-canonical specification** — the values below reflect what this reference implementation
-produces today, and the two places they're defined are easy to align (`records()` and
-`writeManifests()` in `server.js`, mirrored for display in `public/index.html`).
+canonical specification** ([agentroot.io/publish](https://www.agentroot.io/publish)) — the
+value below reflects what this reference implementation produces today (defined by
+`AGENTROOT_PAYLOAD` / `records()` in `server.js`, mirrored for display in `public/index.html`).
 
-## DNS TXT records
+## The TXT record
 
-Two records are written per domain:
+One record per domain, with an inline payload — **no JSON manifest is hosted anywhere.**
+AgentRoot indexes the TXT record directly.
 
 ```
-_agent.{domain}  TXT  "v=agentroot1; card=https://{MANIFEST_BASE}/{domain}/agent-card.json"
-_skill.{domain}  TXT  "v=agentroot1; index=https://{MANIFEST_BASE}/{domain}/skills/index.json"
+_agentroot.{domain}  TXT  "v=ar1 type=mcp name={label} transport=sse"
 ```
 
-- `v=agentroot1` — version tag; verification matches on the substring `v=agentroot1`.
-- `card=` / `index=` — absolute HTTPS URLs to the manifests, under a configurable
-  `MANIFEST_BASE` host (e.g. `https://manifests.example.com`).
-- TTL: 120 s on Cloudflare, 600 s on Porkbun (registry minimum).
+For `fredhsu.com`:
 
-A domain is considered **live on AgentRoot** when both `_agent` and `_skill` TXT records
-resolve and contain `v=agentroot1`.
-
-## Manifest files
-
-Generated as minimal stubs on install (and idempotently on verify), served at
-`/manifests/{domain}/...` with `Access-Control-Allow-Origin: *`.
-
-### `agent-card.json`
-
-```json
-{
-  "name": "{domain}",
-  "url": "https://{domain}",
-  "version": "1.0.0",
-  "skills": [],
-  "verified_at": "{ISO-8601 timestamp}",
-  "registry": "https://www.agentroot.io"
-}
+```
+_agentroot.fredhsu.com  TXT  "v=ar1 type=mcp name=fredhsu transport=sse"
 ```
 
-### `skills/index.json`
+### Fields
 
-```json
-{
-  "version": "agentroot1",
-  "domain": "{domain}",
-  "skills": []
-}
-```
+| Field | Value | Meaning |
+|---|---|---|
+| `v` | `ar1` | AgentRoot spec version |
+| `type` | `mcp` | This is an MCP agent endpoint |
+| `name` | `{label}` | Short display name — the domain's first label (`fredhsu` for `fredhsu.com`) |
+| `transport` | `sse` | How agents should connect |
 
-These are intentionally empty scaffolds — the installer's job is to make a domain *discoverable*
-(records resolve, manifests exist). Populating skills/cards is a separate concern and a natural
-extension point for AgentRoot to own.
+This is the **four-field minimum** the AgentRoot `/publish` UI emits for an MCP record with
+only *Name* filled. It deliberately omits `endpoint` — the installer doesn't claim where the
+user's MCP server lives. Users add `endpoint=…` later from `agentroot.io/publish` once they
+stand up a server.
+
+### Quoting
+
+The canonical payload data is `v=ar1 type=mcp name=… transport=sse` — the surrounding `"…"`
+are DNS presentation quotes, not part of the data:
+
+- **Cloudflare** API is sent the **quoted** form (`"v=ar1 …"`) so the dashboard doesn't show a
+  "must be in quotation marks" warning. Cloudflare treats the quotes as delimiters.
+- **Porkbun** API is sent the **raw** form (no quotes) — it wraps the value itself; sending
+  quotes would store literal quote characters.
+- **Manual paste** display shows the quoted form — that's what users paste verbatim.
+- **Verification** uses `dns.resolveTxt`, which strips DNS quoting, and matches the `v=ar1`
+  prefix — so it works regardless of how the value was stored.
+
+A domain is considered **live on AgentRoot** when `_agentroot.{domain}` resolves to a TXT
+value starting with `v=ar1`.
 
 ## Points to align with the canonical spec
 
-- Record names (`_agent`, `_skill`), the `v=agentroot1` tag, and the `card=`/`index=` keys.
-- Manifest field names and required vs. optional fields (`verified_at`, `registry`, `version`).
-- Whether the manifest host is fixed by AgentRoot or per‑deployment (here it's `MANIFEST_BASE`).
-- Signing/verification expectations, if any, beyond "the TXT record resolves".
+- The record name (`_agentroot`), the `v=ar1` version tag, and the field keys
+  (`type`, `name`, `transport`, optional `endpoint`).
+- Whether the four-field set is the canonical minimum for inline DNS indexing, or whether
+  `description` / `endpoint` are also required. *(Open question pending confirmation from the
+  AgentRoot team — if so, it's a one-line change to `AGENTROOT_PAYLOAD`.)*
+- Default `transport` (`sse` vs `streamable-http`) and `type` values.

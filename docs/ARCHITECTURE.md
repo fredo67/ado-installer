@@ -6,10 +6,12 @@ ADO Installer is two files plus a SQLite log. This document explains how they fi
 
 | Piece | File | Role |
 |---|---|---|
-| Backend | `server.js` | Express app: detection, registrar installs, verify, manifest hosting, install log |
+| Backend | `server.js` | Express app: detection, registrar installs, verify, install log |
 | Frontend | `public/index.html` | Single‑page app — inline CSS, one ES‑module `<script>`, no build |
 | Schema | `schema.sql` | One table, `installs` (install events only) |
-| Manifests | `manifests/{domain}/…` | Per‑domain stub JSON, generated on install, served at `/manifests` |
+
+The installer hosts nothing per domain — AgentRoot indexes the TXT record directly, so there
+is no manifest subsystem.
 
 ## Request flow
 
@@ -21,18 +23,16 @@ ADO Installer is two files plus a SQLite log. This document explains how they fi
 
 2. authorize POST /api/cloudflare/install {domain, token}
              POST /api/porkbun/install    {domain, apikey, secretapikey}
-                ├─ write _agent + _skill TXT (upsert) via the registrar API
-                ├─ writeManifests(domain)          → agent-card.json, skills/index.json
+                ├─ upsert one _agentroot TXT via the registrar API
+                │    (Cloudflare gets the quoted payload; Porkbun the raw payload)
+                ├─ best-effort cleanup of stale v3.7 _agent/_skill records we wrote
                 └─ insert install row (status=installed)
              ← {success, record_ids}
 
 3. verify    POST /api/verify {domain}
-                └─ dns.resolveTxt(_agent.{d}), dns.resolveTxt(_skill.{d})
-             ← {agent:{ok,value}, skill:{ok,value}}   (mark verified when both ok)
+                └─ dns.resolveTxt(_agentroot.{d}) → match the v=ar1 prefix
+             ← {agentroot:{ok,value}}   (mark verified when ok)
 ```
-
-`writeManifests` is also called from `/api/verify`, so the manifest URLs in the TXT records
-resolve even for the manual flow where we never wrote the records ourselves.
 
 ## Detection
 

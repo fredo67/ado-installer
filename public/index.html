@@ -153,6 +153,15 @@
   .popup-steps li b{color:var(--text);font-weight:600}
   .zone-hint{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.55;margin:0 0 18px;padding:10px 12px;background:#FF5A1F0a;border-left:2px solid var(--accent);border-radius:4px}
   .zone-hint b{color:var(--text);font-weight:600}
+  .rec-explain{margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .rec-explain summary{cursor:pointer;padding:8px 0;color:var(--muted)}
+  .rec-explain summary:hover{color:var(--accent)}
+  .rec-fields{margin:8px 0;border-collapse:collapse;width:100%}
+  .rec-fields td{padding:4px 8px;border-bottom:1px solid var(--line);font-size:11px;vertical-align:top}
+  .rec-fields td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+  .rec-explain-note{margin:10px 0 0;line-height:1.5;color:var(--muted)}
+  .rec-explain-note code{background:#00000008;padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
+  .rec-explain-note a{color:var(--accent);border-bottom:1px dotted}
   .token-valid{border-color:var(--green) !important;box-shadow:0 0 0 4px #16A34A1a !important}
   .token-warn{border-color:var(--accent) !important;box-shadow:0 0 0 4px #FF5A1F14 !important}
   .token-hint{font-family:var(--mono);font-size:11px;line-height:1.4;margin:6px 4px 14px;min-height:14px;color:var(--muted)}
@@ -317,7 +326,7 @@ function stepIndicator(active) {
   }).join('');
 }
 
-const state = { domain: '', detect: null, batch: [], banner: null, manifestBase: null };
+const state = { domain: '', detect: null, batch: [], banner: null };
 
 function normalizeDomainClient(raw) {
   const d = (raw || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
@@ -383,9 +392,8 @@ const HERO_SCRIPT = [
   { text: '' },
   { text: '$ ado-installer install mycompany.com', cls: 'cmd', pause: 320 },
   { text: '' },
-  { text: '→ writing _agent.mycompany.com', cls: 'arrow', fast: true },
-  { text: '→ writing _skill.mycompany.com', cls: 'arrow', fast: true },
-  { text: '✓ records propagated', cls: 'ok' },
+  { text: '→ writing _agentroot.mycompany.com', cls: 'arrow', fast: true },
+  { text: '✓ record propagated', cls: 'ok' },
   { text: '✓ mycompany.com live on AgentRoot', cls: 'ok', pause: 200 },
   { text: '' },
 ];
@@ -421,7 +429,7 @@ function viewDetect() {
   $('#howBtn').addEventListener('click', () => typeScript([
     { text: '$ ado-installer --help', cls: 'cmd', pause: 260 }, { text: '' },
     { text: '1. detect  — find who runs your DNS', cls: 'arrow', fast: true },
-    { text: '2. install — write _agent + _skill TXT', cls: 'arrow', fast: true },
+    { text: '2. install — write _agentroot TXT', cls: 'arrow', fast: true },
     { text: '3. verify  — confirm propagation', cls: 'arrow', fast: true }, { text: '' },
     { text: '✓ no account, no gatekeepers', cls: 'ok' },
   ]));
@@ -446,7 +454,6 @@ async function doDetect() {
     const r = await api('/api/detect', { domain: raw });
     state.domain = normalizeDomainClient(raw);
     state.detect = r;
-    if (r.manifest_base) state.manifestBase = r.manifest_base;
     openActivateModal(r);
   } catch (e) {
     err.textContent = e.message;
@@ -714,11 +721,20 @@ function bodyDetectResult() {
 }
 
 function scopesBlock() {
-  return `<div class="scopes-label" style="margin-top:18px">RECORDS WE'LL ADD</div>
+  return `<div class="scopes-label" style="margin-top:18px">RECORD WE'LL ADD</div>
     <div class="scopes">
-      <div class="scope"><b>+</b><span>_agent.${esc(state.domain)}&nbsp;&nbsp;TXT</span></div>
-      <div class="scope"><b>+</b><span>_skill.${esc(state.domain)}&nbsp;&nbsp;TXT</span></div>
-    </div>`;
+      <div class="scope"><b>+</b><span>_agentroot.${esc(state.domain)}&nbsp;&nbsp;TXT</span></div>
+    </div>
+    <details class="rec-explain">
+      <summary>What's in this record?</summary>
+      <table class="rec-fields">
+        <tr><td>v=ar1</td><td>AgentRoot spec version</td></tr>
+        <tr><td>type=mcp</td><td>This is an MCP agent endpoint</td></tr>
+        <tr><td>name=…</td><td>Short display name (your domain's first label)</td></tr>
+        <tr><td>transport=sse</td><td>How agents should connect</td></tr>
+      </table>
+      <p class="rec-explain-note">Standing up an MCP server? Add <code>endpoint=…</code> later from <a href="https://www.agentroot.io/publish" target="_blank" rel="noopener">agentroot.io/publish</a>.</p>
+    </details>`;
 }
 function cfHead(label) {
   return `<div class="reg-card">${regLogo('cloudflare', 'Cloudflare')}<div><div class="reg-label">${label}</div><div class="reg-name">Cloudflare</div></div></div>`;
@@ -933,7 +949,7 @@ async function pollActivate() {
   let r = null;
   try { r = await api('/api/verify', { domain: state.domain }); } catch {}
   if (!activate || activate.step !== 'activating') return;
-  if (r && r.agent?.ok && r.skill?.ok) {
+  if (r && r.agentroot?.ok) {
     const bar = $('#progBar'); if (bar) bar.style.width = '100%';
     setTimeout(() => { if (activate && activate.step === 'activating') { activate.step = 'activated'; renderActivate(); } }, 450);
     return;
@@ -1009,13 +1025,10 @@ function renderModalBody(d, modalState, ctx) {
 
   // Dimmed "fine print" record list, used on the two sign-in states.
   const scopes = `
-    <div class="scopes-label">RECORDS THAT WILL BE ADDED</div>
+    <div class="scopes-label">RECORD THAT WILL BE ADDED</div>
     ${many
-      ? `<div class="scopes"><div class="scope"><b>+</b><span>_agent &amp; _skill TXT — on each of ${domains.length} domains</span></div></div>`
-      : `<div class="scopes">
-           <div class="scope"><b>+</b><span>_agent.${esc(dom)}&nbsp;&nbsp;TXT</span></div>
-           <div class="scope"><b>+</b><span>_skill.${esc(dom)}&nbsp;&nbsp;TXT</span></div>
-         </div>`}`;
+      ? `<div class="scopes"><div class="scope"><b>+</b><span>_agentroot TXT — on each of ${domains.length} domains</span></div></div>`
+      : `<div class="scopes"><div class="scope"><b>+</b><span>_agentroot.${esc(dom)}&nbsp;&nbsp;TXT</span></div></div>`}`;
 
   const heading = modalState === 'manual' ? 'Add records manually' : `Connect ${esc(d.registrar)}`;
   let inner;
@@ -1088,8 +1101,7 @@ async function installAutomated(d, creds, domains, { statusEl, btn, onDone, onPr
     if (onProgress) onProgress(domain, 'installing');
     renderTerm([
       { text: `$ ado-installer install ${domain}`, cls: 'cmd' }, { text: '' },
-      { text: '→ writing _agent.' + domain, cls: 'arrow' },
-      { text: '→ writing _skill.' + domain, cls: 'arrow' },
+      { text: '→ writing _agentroot.' + domain, cls: 'arrow' },
     ]);
     try {
       const r = await api(cfg.endpoint, { domain, ...creds });
@@ -1108,14 +1120,12 @@ async function installAutomated(d, creds, domains, { statusEl, btn, onDone, onPr
   return results;
 }
 
-// The manifest host comes from the backend (/api/detect → manifest_base) so the
-// records shown here always match what the server actually writes.
-function manifestBase() { return state.manifestBase || 'https://manifests.example.com'; }
+// Single AgentRoot inline record. Displayed value keeps the quotes — that's
+// what users paste verbatim into their DNS panel.
 function recordValues(domain) {
-  const b = manifestBase();
+  const inline = `v=ar1 type=mcp name=${domain.split('.')[0]} transport=sse`;
   return [
-    { name: `_agent.${domain}`, value: `v=agentroot1; card=${b}/${domain}/agent-card.json` },
-    { name: `_skill.${domain}`, value: `v=agentroot1; index=${b}/${domain}/skills/index.json` },
+    { name: `_agentroot.${domain}`, value: `"${inline}"` },
   ];
 }
 function recCard(r) {
@@ -1173,7 +1183,6 @@ async function runBulkDetect() {
   await mapLimit(state.batch, 5, async (b) => {
     try {
       const r = await api('/api/detect', { domain: b.domain, whois: false });
-      if (r.manifest_base) state.manifestBase = r.manifest_base;
       b.detect = r;
       b.modalState = modalStateFor(r);
       b.status = b.modalState === 'auto-ready' ? 'ready' : b.modalState === 'auto-soon' ? 'soon' : 'manual';
@@ -1258,7 +1267,7 @@ async function runBulkVerify() {
   await mapLimit(targets, 5, async (x) => {
     try {
       const r = await api('/api/verify', { domain: x.domain });
-      x.status = (r.agent.ok && r.skill.ok) ? 'live' : 'waiting';
+      x.status = r.agentroot?.ok ? 'live' : 'waiting';
     } catch { x.status = 'waiting'; }
     renderBatch();
   });

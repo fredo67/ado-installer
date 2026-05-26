@@ -15,11 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ---------------------------------------------------------------------------
 const DEMO = (process.env.DEMO ?? 'true').toLowerCase() !== 'false';
 const PORT = parseInt(process.env.PORT ?? '4180', 10);
-const MANIFEST_BASE = (process.env.MANIFEST_BASE ?? 'https://manifests.example.com').replace(/\/$/, '');
 const CF_API = 'https://api.cloudflare.com/client/v4';
-const MANIFESTS_DIR = path.join(__dirname, 'manifests');
-
-fs.mkdirSync(MANIFESTS_DIR, { recursive: true });
 
 // ---------------------------------------------------------------------------
 // Database — install log only. The Cloudflare token is never stored.
@@ -73,26 +69,21 @@ function normalizeDomain(input) {
   return d;
 }
 
+// AgentRoot TXT record (inline DNS mode). One record at _agentroot.<domain>.
+// Reference: https://www.agentroot.io/publish
+// Four-field minimum the /publish UI emits for an MCP record with only Name
+// filled; no `endpoint` (we don't claim where the user's MCP server lives).
+// `content` is the canonical RAW payload — DNS presentation quotes are added at
+// the registrar boundary (Cloudflare wants quoted input; Porkbun wants raw).
+const AGENTROOT_PAYLOAD = (domain) => `v=ar1 type=mcp name=${domain.split('.')[0]} transport=sse`;
+
 function records(domain) {
   return [
-    { key: 'agent', name: `_agent.${domain}`, content: `v=agentroot1; card=${MANIFEST_BASE}/${domain}/agent-card.json` },
-    { key: 'skill', name: `_skill.${domain}`, content: `v=agentroot1; index=${MANIFEST_BASE}/${domain}/skills/index.json` },
+    { key: 'agentroot', name: `_agentroot.${domain}`, content: AGENTROOT_PAYLOAD(domain) },
   ];
 }
 
-function writeManifests(domain) {
-  const dir = path.join(MANIFESTS_DIR, domain);
-  fs.mkdirSync(path.join(dir, 'skills'), { recursive: true });
-  const now = new Date().toISOString();
-  fs.writeFileSync(
-    path.join(dir, 'agent-card.json'),
-    JSON.stringify({ name: domain, url: `https://${domain}`, version: '1.0.0', skills: [], verified_at: now, registry: 'https://www.agentroot.io' }, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(dir, 'skills', 'index.json'),
-    JSON.stringify({ version: 'agentroot1', domain, skills: [] }, null, 2)
-  );
-}
+const quoted = (s) => `"${s}"`;
 
 // Tracks when a domain was "installed" so DEMO verify can succeed after 8s.
 const installedAt = new Map();
@@ -119,11 +110,27 @@ async function cloudflareInstall(domain, token) {
     throw new Error(`No Cloudflare zone found for ${domain}. Make sure the token has access to this zone.`);
   }
   const zoneId = zones[0].id;
+
+  // Best-effort cleanup of v3.7-era records we wrote (content carries our old
+  // v=agentroot1 marker). Unrelated TXT at those names is left alone.
+  for (const stale of [`_agent.${domain}`, `_skill.${domain}`]) {
+    try {
+      const old = await cf(token, `/zones/${zoneId}/dns_records?type=TXT&name=${encodeURIComponent(stale)}`);
+      for (const r of old) {
+        if (r.content?.includes('v=agentroot1')) {
+          await cf(token, `/zones/${zoneId}/dns_records/${r.id}`, { method: 'DELETE' });
+        }
+      }
+    } catch { /* best-effort */ }
+  }
+
   const ids = [];
   for (const rec of records(domain)) {
     // Upsert: if a TXT record with this name already exists, replace it.
+    // Quote the content so Cloudflare's dashboard doesn't show the
+    // "must be in quotation marks" warning; resolvers see the same value.
     const existing = await cf(token, `/zones/${zoneId}/dns_records?type=TXT&name=${encodeURIComponent(rec.name)}`);
-    const body = JSON.stringify({ type: 'TXT', name: rec.name, content: rec.content, ttl: 120 });
+    const body = JSON.stringify({ type: 'TXT', name: rec.name, content: quoted(rec.content), ttl: 120 });
     const result = existing.length
       ? await cf(token, `/zones/${zoneId}/dns_records/${existing[0].id}`, { method: 'PUT', body })
       : await cf(token, `/zones/${zoneId}/dns_records`, { method: 'POST', body });
@@ -154,10 +161,24 @@ async function pb(urlPath, body) {
 
 async function porkbunInstall(domain, apikey, secretapikey) {
   const auth = { apikey, secretapikey };
+
+  // Best-effort cleanup of v3.7-era records we wrote (carry the v=agentroot1 marker).
+  for (const stale of ['_agent', '_skill']) {
+    try {
+      const old = await pb(`/dns/retrieveByNameType/${domain}/TXT/${stale}`, auth);
+      for (const r of old.records || []) {
+        if (String(r.content).includes('v=agentroot1')) {
+          await pb(`/dns/delete/${domain}/${r.id}`, auth);
+        }
+      }
+    } catch { /* best-effort */ }
+  }
+
   const ids = [];
   for (const rec of records(domain)) {
-    const sub = rec.name.slice(0, -(domain.length + 1)); // "_agent.ex.com" -> "_agent"
-    // Upsert: edit existing TXT of that name, else create. (Porkbun ttl min 600.)
+    const sub = rec.name.slice(0, -(domain.length + 1)); // "_agentroot.ex.com" -> "_agentroot"
+    // Porkbun stores content verbatim and wraps it in quotes itself, so send the
+    // RAW payload (no quotes — quoting here would store literal quote chars).
     const existing = await pb(`/dns/retrieveByNameType/${domain}/TXT/${sub}`, auth);
     if (existing.records && existing.records.length) {
       await pb(`/dns/editByNameType/${domain}/TXT/${sub}`, { ...auth, content: rec.content, ttl: '600' });
@@ -225,13 +246,6 @@ async function lookupRegistrar(domain) {
 const app = express();
 app.use(express.json());
 
-// Manifests are public JSON, fetched cross-origin by agent clients.
-app.use(
-  '/manifests',
-  (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); },
-  express.static(MANIFESTS_DIR, { extensions: ['json'] })
-);
-
 // Detection is ALWAYS real — it's a read-only NS lookup. DEMO only mocks
 // the writes (install) and verify, never which registrar a domain is on.
 app.post('/api/detect', async (req, res) => {
@@ -248,7 +262,7 @@ app.post('/api/detect', async (req, res) => {
     if (!ns.length && !reg.name) {
       return res.status(404).json({ error: `Could not look up ${domain}. Check the spelling.` });
     }
-    res.json({ ...describeRegistrar(matchRegistrar(ns), domain), ns, whois_registrar: reg.name, registrar_source: reg.source, manifest_base: MANIFEST_BASE });
+    res.json({ ...describeRegistrar(matchRegistrar(ns), domain), ns, whois_registrar: reg.name, registrar_source: reg.source });
   } catch {
     res.status(404).json({ error: `Could not look up ${domain}. Check the spelling.` });
   }
@@ -262,12 +276,11 @@ app.post('/api/cloudflare/install', async (req, res) => {
   try {
     let record_ids;
     if (DEMO) {
-      record_ids = ['demo-agent-record', 'demo-skill-record'];
+      record_ids = ['demo-agentroot-record'];
     } else {
       if (!token) return res.status(400).json({ error: 'Cloudflare API token required (Zone:DNS:Edit scope).' });
       record_ids = await cloudflareInstall(domain, token);
     }
-    writeManifests(domain);
     installedAt.set(domain, Date.now());
     insertInstall.run(domain, 'Cloudflare', 'installed');
     console.log(`[install] ${domain} -> Cloudflare (${DEMO ? 'demo' : 'live'})`);
@@ -286,12 +299,11 @@ app.post('/api/porkbun/install', async (req, res) => {
   try {
     let record_ids;
     if (DEMO) {
-      record_ids = ['demo-agent-record', 'demo-skill-record'];
+      record_ids = ['demo-agentroot-record'];
     } else {
       if (!apikey || !secretapikey) return res.status(400).json({ error: 'Porkbun API key and secret key required.' });
       record_ids = await porkbunInstall(domain, apikey, secretapikey);
     }
-    writeManifests(domain);
     installedAt.set(domain, Date.now());
     insertInstall.run(domain, 'Porkbun', 'installed');
     console.log(`[install] ${domain} -> Porkbun (${DEMO ? 'demo' : 'live'})`);
@@ -301,39 +313,35 @@ app.post('/api/porkbun/install', async (req, res) => {
   }
 });
 
+async function checkAgentRoot(domain) {
+  try {
+    // dns.resolveTxt strips DNS presentation quotes, so we match the raw payload.
+    const values = await resolveTxtFlat(`_agentroot.${domain}`);
+    const found = values.find((v) => v.startsWith('v=ar1'));
+    return { ok: !!found, value: found ?? null };
+  } catch {
+    return { ok: false, value: null };
+  }
+}
+
 app.post('/api/verify', async (req, res) => {
   const domain = normalizeDomain(req.body?.domain);
   if (!domain) return res.status(400).json({ error: 'Invalid domain' });
-
-  const recs = records(domain);
-  writeManifests(domain); // ensure targets resolve for manual flows too (idempotent)
 
   if (DEMO) {
     if (!installedAt.has(domain)) installedAt.set(domain, Date.now());
     const ready = Date.now() - installedAt.get(domain) >= 8000;
     if (ready) markVerified.run(domain);
-    return res.json({
-      agent: { ok: ready, value: ready ? recs[0].content : null },
-      skill: { ok: ready, value: ready ? recs[1].content : null },
-    });
+    return res.json({ agentroot: { ok: ready, value: ready ? AGENTROOT_PAYLOAD(domain) : null } });
   }
 
-  const check = async (rec) => {
-    try {
-      const vals = await resolveTxtFlat(rec.name);
-      const found = vals.find((v) => v.includes('v=agentroot1'));
-      return { ok: !!found, value: found ?? null };
-    } catch {
-      return { ok: false, value: null };
-    }
-  };
-  const [agent, skill] = await Promise.all([check(recs[0]), check(recs[1])]);
-  if (agent.ok && skill.ok) markVerified.run(domain);
-  res.json({ agent, skill });
+  const result = await checkAgentRoot(domain);
+  if (result.ok) markVerified.run(domain);
+  res.json({ agentroot: result });
 });
 
-// SPA last so it doesn't shadow the API/manifests routes.
-// SPA: never let the browser serve a stale homepage — always revalidate the HTML.
+// SPA last so it doesn't shadow the API routes. Never let the browser serve a
+// stale homepage — always revalidate the HTML.
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -342,5 +350,4 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 app.listen(PORT, () => {
   console.log(`ADO Installer listening on http://127.0.0.1:${PORT}  (DEMO=${DEMO})`);
-  console.log(`Manifest base: ${MANIFEST_BASE}`);
 });

@@ -1,7 +1,7 @@
 {
   "name": "ado-installer",
   "version": "3.6.0",
-  "description": "One-click AgentRoot domain onboarding — detect the DNS host, write the _agent/_skill TXT records (automated for Cloudflare & Porkbun, guided elsewhere), and verify propagation.",
+  "description": "One-click AgentRoot domain onboarding — detect the DNS host, write the _agentroot TXT record (automated for Cloudflare & Porkbun, guided elsewhere), and verify propagation.",
   "type": "module",
   "main": "server.js",
   "scripts": {

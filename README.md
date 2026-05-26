@@ -18,22 +18,22 @@ onboarding tool, under the MIT license. See [Contributing to AgentRoot](#contrib
 
 ## What it does
 
-A domain joins AgentRoot by publishing two DNS `TXT` records that point at a manifest host:
+A domain joins AgentRoot by publishing one DNS `TXT` record with an inline payload:
 
 ```
-_agent.{domain}  TXT  "v=agentroot1; card=https://{manifest-host}/{domain}/agent-card.json"
-_skill.{domain}  TXT  "v=agentroot1; index=https://{manifest-host}/{domain}/skills/index.json"
+_agentroot.{domain}  TXT  "v=ar1 type=mcp name={label} transport=sse"
 ```
 
-The installer:
+AgentRoot indexes the record directly — **domain owners don't host any JSON manifest.** The
+installer:
 
 1. **Detects** which DNS host and registrar a domain uses (live `dns.NS` lookup for the DNS
    operator, system `whois` + RDAP fallback for the registrar of record).
 2. **Authorizes** the write — automatically through the registrar's API where one exists, or
-   by guiding the user to paste the records into their DNS panel.
-3. **Verifies** that both records resolve, polling until propagation completes.
+   by guiding the user to paste the record into their DNS panel.
+3. **Verifies** that the record resolves, polling until propagation completes.
 
-The exact record format and manifest JSON shapes are documented in
+The exact record format is documented in
 [`docs/AGENTROOT-RECORDS.md`](docs/AGENTROOT-RECORDS.md) — that's the file the AgentRoot team
 will most want to reconcile against the canonical spec.
 
@@ -43,7 +43,7 @@ will most want to reconcile against the canonical spec.
 |---|---|---|
 | **Cloudflare** | NS `*.ns.cloudflare.com` | **Automated** — popup to Cloudflare's token creator (`Zone:DNS:Edit` pre‑filled), token pasted back, used once via the Cloudflare API |
 | **Porkbun** | NS `*.porkbun.com` | **Automated** — account API key + secret via the Porkbun REST API |
-| GoDaddy, Namecheap, Squarespace, AWS Route 53 | NS match | **Manual** — copy/paste the two records, with a deep link to the DNS page |
+| GoDaddy, Namecheap, Squarespace, AWS Route 53 | NS match | **Manual** — copy/paste the record, with a deep link to the DNS page |
 | Anything else / parked | NS unknown | **Manual** — generic copy/paste flow |
 
 Automated registrars are driven by a small declarative table (`AUTOMATED` in
@@ -68,16 +68,15 @@ app only ever sees the resulting API token the user pastes back.
 ```
 Browser (public/index.html, vanilla ES modules)
    │  POST /api/detect      → NS lookup + whois/RDAP registrar
-   │  POST /api/cloudflare/install  (token)        ┐ write _agent + _skill TXT,
-   │  POST /api/porkbun/install     (apikey/secret)┘ generate stub manifests
-   │  POST /api/verify      → resolve both TXT records
+   │  POST /api/cloudflare/install  (token)        ┐ write the _agentroot TXT
+   │  POST /api/porkbun/install     (apikey/secret)┘ record at the registrar
+   │  POST /api/verify      → resolve the _agentroot TXT record
    ▼
-server.js (Express)  ──>  manifests/{domain}/agent-card.json, skills/index.json  (served at /manifests)
-                     ──>  data.db (SQLite: install log)
+server.js (Express)  ──>  data.db (SQLite: install log only)
 ```
 
-Full design notes — the activate‑modal state machine, detection logic, manifest hosting,
-and `DEMO` mode — are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full design notes — the activate‑modal state machine, detection logic, and `DEMO` mode —
+are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## API
 
@@ -87,8 +86,7 @@ and `DEMO` mode — are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 | `POST` | `/api/detect` | `{domain, whois?}` | `{registrar, registrar_slug, deep_link, automated, ns, whois_registrar, registrar_source}` |
 | `POST` | `/api/cloudflare/install` | `{domain, token}` | `{success, record_ids}` — token used once, discarded |
 | `POST` | `/api/porkbun/install` | `{domain, apikey, secretapikey}` | `{success, record_ids}` — keys used once, discarded |
-| `POST` | `/api/verify` | `{domain}` | `{agent:{ok,value}, skill:{ok,value}}` |
-| `GET`  | `/manifests/{domain}/...` | — | the generated stub manifests (CORS‑open JSON) |
+| `POST` | `/api/verify` | `{domain}` | `{agentroot:{ok,value}}` |
 
 ## Quick start
 
@@ -119,25 +117,24 @@ Set `DEMO=false` for live registrar writes and real propagation checks.
 |---|---|---|
 | `DEMO` | `true` | Mock registrar writes + verify (detection stays real) |
 | `PORT` | `4180` | Port the server listens on |
-| `MANIFEST_BASE` | `https://manifests.example.com` | Public base URL embedded in the TXT records and served from `/manifests`. **Set this to your own manifest host.** |
 
 ## Project layout
 
 ```
 ado-installer/
-├── server.js              # Express app: detect, install (CF/Porkbun), verify, manifest hosting
+├── server.js              # Express app: detect, install (CF/Porkbun), verify
 ├── public/index.html      # entire SPA — inline CSS + vanilla ES modules, no build step
 ├── schema.sql             # SQLite: single `installs` table (install log only)
 ├── .env.example           # configuration template
-├── deploy/                # reference systemd unit + nginx vhost (adjust hostnames)
+├── deploy/                # reference systemd unit + nginx vhost (adjust hostname)
 ├── docs/
 │   ├── ARCHITECTURE.md     # request flow, state machine, detection, DEMO mode
-│   └── AGENTROOT-RECORDS.md# the TXT record + manifest format this writes
+│   └── AGENTROOT-RECORDS.md# the TXT record format this writes
 ├── CONTRIBUTING.md
 └── LICENSE                 # MIT
 ```
 
-`data.db` and `manifests/` are generated at runtime and git‑ignored.
+`data.db` is generated at runtime and git‑ignored.
 
 ## Deployment
 
@@ -145,15 +142,14 @@ The app is a single long‑running Node process behind nginx. The reference depl
 systemd + nginx + certbot; the unit and vhost templates live in [`deploy/`](deploy/).
 
 ```bash
-# 1. Point two A records at your server:
+# 1. Point one A record at your server:
 #      installer.example.com   A   <server-ip>
-#      manifests.example.com   A   <server-ip>
 
 # 2. Copy the app and install production deps
 rsync -avz --delete --exclude node_modules --exclude 'data.db*' \
-  --exclude manifests --exclude .env ./ user@<server-ip>:/opt/ado-installer/
+  --exclude .env ./ user@<server-ip>:/opt/ado-installer/
 ssh user@<server-ip> 'cd /opt/ado-installer && npm install --omit=dev && cp -n .env.example .env'
-# edit /opt/ado-installer/.env: set MANIFEST_BASE=https://manifests.example.com and DEMO=false
+# edit /opt/ado-installer/.env: set DEMO=false
 
 # 3. systemd  (adjust paths/user in deploy/ado-installer.service first)
 sudo cp deploy/ado-installer.service /etc/systemd/system/
@@ -165,12 +161,12 @@ sudo ln -sf /etc/nginx/sites-available/ado-installer.conf /etc/nginx/sites-enabl
 sudo nginx -t && sudo systemctl reload nginx
 
 # 5. TLS
-sudo certbot --nginx -d installer.example.com -d manifests.example.com \
+sudo certbot --nginx -d installer.example.com \
   --non-interactive --agree-tos -m you@example.com --redirect
 ```
 
-`manifests.example.com` is proxied to the same backend so the `/manifests/{domain}/...` URLs in
-the TXT records resolve over HTTPS.
+The installer hosts nothing per domain — AgentRoot indexes the TXT record directly, so there's
+no manifest host to deploy.
 
 ## Contributing
 
@@ -184,13 +180,13 @@ This project is MIT‑licensed (see [`LICENSE`](LICENSE)) specifically so it can
 the AgentRoot ecosystem. A paste‑ready proposal/cover note lives in
 [`docs/CONTRIBUTION-PROPOSAL.md`](docs/CONTRIBUTION-PROPOSAL.md). To adopt it:
 
-- The record/manifest format in [`docs/AGENTROOT-RECORDS.md`](docs/AGENTROOT-RECORDS.md) should
-  be reconciled with AgentRoot's canonical spec; the implementation reads `v=agentroot1` and a
-  `manifests.{host}` base, both easy to align.
+- The record format in [`docs/AGENTROOT-RECORDS.md`](docs/AGENTROOT-RECORDS.md) should be
+  reconciled with AgentRoot's canonical spec; the implementation writes the four-field inline
+  payload (`v=ar1 type=mcp name=… transport=sse`) the /publish UI emits, easy to align.
 - There are no proprietary dependencies — Express, better‑sqlite3, dotenv, node‑fetch — and no
   secrets in the repo.
-- Re‑homing under an `agentroot/` org is a remote rename; `MANIFEST_BASE` and the deploy
-  hostnames are the only environment‑specific values.
+- Re‑homing under an `agentroot/` org is a remote rename; the deploy hostname is the only
+  environment‑specific value.
 
 ## License
 
