@@ -670,7 +670,7 @@ function activateSteps() {
 }
 function activeStepIndex() {
   const s = activate.step;
-  if (activate.manual) return ({ 'detect-result': 0, 'authorize-manual': 1, activating: 2, activated: 3 })[s] ?? 0;
+  if (activate.manual) return ({ 'detect-result': 0, 'authorize': 1, 'authorize-manual': 1, activating: 2, activated: 3 })[s] ?? 0;
   return ({ 'detect-result': 0, authorize: 1, 'authorize-waiting': 1, 'authorize-popup-blocked': 1, activating: 2, activated: 4 })[s] ?? 0;
 }
 function activateStepper() {
@@ -714,7 +714,7 @@ function bodyDetectResult() {
   return `
     <div class="reg-card">${regLogo(d.registrar_slug, d.registrar)}<div><div class="reg-label">DNS host</div><div class="reg-name">${esc(d.registrar)}</div></div></div>
     ${d.whois_registrar ? `<p class="regwhois">Registrar of record: <b>${esc(d.whois_registrar)}</b> <span class="src">· ${esc(d.registrar_source || '')}</span></p>` : ''}
-    <p class="msub">We detected your DNS host. Click Continue and we'll add the two AgentRoot records to <b>${esc(state.domain)}</b>.</p>
+    <p class="msub">We detected your DNS host. Click Continue and we'll add the AgentRoot record to <b>${esc(state.domain)}</b>.</p>
     <label class="diffhost"><input type="checkbox" id="diffHostCk"${activate.diffHost ? ' checked' : ''}/> My domain uses a different host</label>
     <div class="hostpick${activate.diffHost ? ' open' : ''}"><select id="hostSelect" class="hostsel">${opts}</select></div>
     <button class="pill lg" id="actContinue" type="button">Continue →</button>`;
@@ -744,10 +744,23 @@ function bodyAuthorize() {
   const d = activate.detect;
   const cfg = AUTOMATED[d.registrar];
   if (!cfg) {
+    const known = d.registrar !== 'Unknown';
+    const hasDeep = !!d.deep_link;
+    const intro = !known
+      ? `We couldn't identify your DNS host. Add one TXT record manually — we'll watch for propagation and finish the rest.`
+      : hasDeep
+        ? `We'll deep-link straight to your ${esc(d.registrar)} DNS panel. Add one TXT record — takes about a minute. We'll watch for propagation.`
+        : `Direct sign-in for ${esc(d.registrar)} isn't available yet. Add one TXT record manually — we'll handle verify.`;
+    const primary = hasDeep
+      ? `<a class="pill lg wfull" id="openRegistrarBtn" href="${esc(d.deep_link)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none">Open ${esc(d.registrar)} DNS →</a>`
+      : `<button class="pill lg wfull" id="continueManualBtn" type="button">Show the record →</button>`;
+    const secondary = hasDeep
+      ? `<button class="ghost-pill wfull" id="continueManualBtn" type="button" style="margin-top:10px">Show the record</button>`
+      : '';
     return `
       <div class="reg-card">${regLogo(d.registrar_slug, d.registrar)}<div><div class="reg-label">DNS host</div><div class="reg-name">${esc(d.registrar)}</div></div></div>
-      <p class="msub">Direct sign-in for ${esc(d.registrar)} isn't available yet. Add the two records manually — we'll handle the verify step.</p>
-      <button class="pill lg" id="actToManual" type="button">Continue manually →</button>`;
+      <p class="msub">${intro}</p>
+      ${primary}${secondary}`;
   }
   if (d.registrar === 'Cloudflare') return bodyAuthorizeCloudflare();
 
@@ -835,7 +848,7 @@ function bodyPopupBlocked() {
 function bodyManual() {
   const d = activate.detect;
   return `
-    <p class="msub">Add these two TXT records in your DNS panel. We'll watch for propagation and finish the rest.</p>
+    <p class="msub">Add this one TXT record in your ${d.registrar !== 'Unknown' ? esc(d.registrar) + ' ' : ''}DNS panel. We'll watch for propagation and finish the rest.</p>
     ${recordValues(state.domain).map(recCard).join('')}
     <button class="pill lg" id="actManualDone" type="button">Done — start verify →</button>
     <p class="micro">${d.deep_link ? `<a class="linkbtn" href="${esc(d.deep_link)}" target="_blank" rel="noopener">Open ${esc(d.registrar)} DNS ↗</a> &nbsp;·&nbsp; ` : ''}<button class="linkbtn" id="actBackHost" type="button">← back to host selection</button></p>`;
@@ -881,15 +894,22 @@ function bindActivate() {
         if (activate.chosen === 'Other') activate.detect = { registrar: 'Unknown', registrar_slug: null, deep_link: null, automated: false };
         else { const r = REGISTRARS.find((x) => x.name === activate.chosen); activate.detect = { registrar: r.name, registrar_slug: r.slug, deep_link: r.deep.replaceAll('{domain}', state.domain), automated: !!AUTOMATED[r.name] }; }
       }
-      if (activate.detect.registrar === 'Unknown') { activate.manual = true; activate.step = 'authorize-manual'; }
-      else { activate.step = 'authorize'; }
+      // Automated → 4-step Authorize flow; everything else (known-but-not-automated
+      // and Unknown) → manual flow, shown via the deep-link/record bridge.
+      activate.manual = !AUTOMATED[activate.detect.registrar];
+      activate.step = 'authorize';
       renderActivate();
     });
   } else if (s === 'authorize') {
     const d = activate.detect;
     const cfg = AUTOMATED[d.registrar];
     if (!cfg) {
-      $('#actToManual').addEventListener('click', () => { activate.manual = true; activate.step = 'authorize-manual'; renderActivate(); });
+      // Deep link opens the registrar DNS panel in a new tab; after a beat, advance
+      // the modal to the records view so it's ready when the user returns.
+      $('#openRegistrarBtn')?.addEventListener('click', () => {
+        setTimeout(() => { activate.step = 'authorize-manual'; renderActivate(); }, 200);
+      });
+      $('#continueManualBtn')?.addEventListener('click', () => { activate.step = 'authorize-manual'; renderActivate(); });
     } else if (d.registrar === 'Cloudflare') {
       bindCloudflareAuthorize();
     } else {
@@ -1030,14 +1050,14 @@ function renderModalBody(d, modalState, ctx) {
       ? `<div class="scopes"><div class="scope"><b>+</b><span>_agentroot TXT — on each of ${domains.length} domains</span></div></div>`
       : `<div class="scopes"><div class="scope"><b>+</b><span>_agentroot.${esc(dom)}&nbsp;&nbsp;TXT</span></div></div>`}`;
 
-  const heading = modalState === 'manual' ? 'Add records manually' : `Connect ${esc(d.registrar)}`;
+  const heading = modalState === 'manual' ? 'Add the record manually' : `Connect ${esc(d.registrar)}`;
   let inner;
 
   if (modalState === 'auto-ready') {
     const fields = cfg.fields.map((f) =>
       `<input class="modal-field" data-key="${f.key}" type="password" placeholder="${esc(f.placeholder)}" spellcheck="false" />`).join('');
     inner = `
-      <p class="msub">We'll sign you in to ${esc(d.registrar)} and add these two TXT records to <b>${targetTxt}</b>. Nothing else changes.</p>
+      <p class="msub">We'll sign you in to ${esc(d.registrar)} and add the AgentRoot record to <b>${targetTxt}</b>. Nothing else changes.</p>
       ${scopes}
       ${fields}
       <button class="pill lg" id="modalConnect" type="button" style="width:100%">Sign in &amp; Set →</button>
@@ -1046,13 +1066,13 @@ function renderModalBody(d, modalState, ctx) {
       <p class="micro"><button class="linkbtn" id="toManual" type="button">add records manually instead</button></p>`;
   } else if (modalState === 'auto-soon') {
     inner = `
-      <p class="msub">Sign in &amp; Set for ${esc(d.registrar)} is rolling out soon. For now, add the two records manually — takes about a minute.</p>
+      <p class="msub">Sign in &amp; Set for ${esc(d.registrar)} is rolling out soon. For now, add the record manually — takes about a minute.</p>
       ${scopes}
       <button class="pill lg" id="toManual" type="button" style="width:100%">Add manually →</button>
       ${d.deep_link ? `<a class="tokenlink" href="${esc(d.deep_link)}" target="_blank" rel="noopener">open ${esc(d.registrar)} DNS ↗</a>` : ''}`;
   } else { // manual
     inner = `
-      <p class="msub">Add these two TXT records in your DNS panel. We'll check propagation once you're done.</p>
+      <p class="msub">Add this TXT record in your DNS panel. We'll check propagation once you're done.</p>
       ${recordValues(dom).map(recCard).join('')}
       <button class="pill lg" id="modalDone" type="button" style="width:100%">Done — verify now →</button>
       ${d.deep_link ? `<a class="tokenlink" href="${esc(d.deep_link)}" target="_blank" rel="noopener">open ${esc(d.registrar)} DNS ↗</a>` : ''}
